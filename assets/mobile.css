@@ -40,33 +40,6 @@ input, textarea, select {
     }
 }
 
-/* Ajusta sidebar para mobile - mantém width 100% para otimização */
-[data-testid="stSidebar"] {
-    width: 100% !important;
-    max-width: 100% !important;
-}
-
-/* Quando sidebar está aberta em mobile, adiciona z-index e overlay para evitar sobreposição */
-@media (max-width: 768px) {
-    [data-testid="stSidebar"][aria-expanded="true"] {
-        width: 100% !important;
-        z-index: 1200 !important;
-        box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2) !important;
-    }
-    
-    /* Cria overlay semi-transparente atrás da sidebar aberta */
-    [data-testid="stSidebar"][aria-expanded="true"]::after {
-        content: '';
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        z-index: -1;
-    }
-}
-
 /* Otimiza expanders */
 .streamlit-expanderHeader {
     font-size: 1rem !important;
@@ -101,5 +74,58 @@ input, textarea, select {
     
     h3 {
         font-size: 1.1rem !important;
+    }
+}
+
+/* ===== SIDEBAR MOBILE FIX ===== */
+/* Wrapper para sidebar com posicionamento correto */
+[data-testid="stSidebar"] {
+    width: 100% !important;
+    max-width: 100% !important;
+    transition: transform 0.3s ease-in-out !important;
+    z-index: 999 !important;
+    position: fixed !important;
+    left: 0 !important;
+    top: 0 !important;
+    height: 100vh !important;
+    background: white !important;
+    box-shadow: 2px 0 10px rgba(0, 0, 0, 0.3) !important;
+}
+
+@media (max-width: 768px) {
+    /* Quando colapsada, desloca para fora da tela */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        transform: translateX(-120%) !important;
+        visibility: hidden !important;
+    }
+    
+    /* Quando aberta, volta para a posição normal */
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        transform: translateX(0) !important;
+        visibility: visible !important;
+        width: 280px !important;
+        max-width: 80vw !important;
+    }
+}
+
+/* Overlay semi-transparente quando sidebar aberta em mobile */
+@media (max-width: 768px) {
+    body::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 500;
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.3s ease;
+    }
+    
+    /* Mostrar overlay quando sidebar está aberta */
+    [data-testid="stSidebar"][aria-expanded="true"] ~ * {
+        /* Este seletor não funciona, usaremos JS */
     }
 }
