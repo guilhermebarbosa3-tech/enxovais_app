@@ -1,0 +1,90 @@
+/* Otimizações para Mobile */
+
+/* Ajusta padding geral */
+.main .block-container {
+    padding: 1rem !important;
+    max-width: 100% !important;
+}
+
+/* Reduz espaçamento entre elementos */
+.stMarkdown, .stText {
+    margin-bottom: 0.5rem !important;
+}
+
+/* Otimiza forms */
+.stForm {
+    padding: 0.5rem !important;
+}
+
+/* Melhora inputs em mobile */
+input, textarea, select {
+    font-size: 16px !important; /* Evita zoom no iOS */
+}
+
+/* Ajusta botões */
+.stButton button {
+    width: 100%;
+    padding: 0.5rem !important;
+    font-size: 1rem !important;
+}
+
+/* Otimiza colunas em mobile */
+@media (max-width: 768px) {
+    .row-widget.stHorizontal {
+        flex-direction: column !important;
+    }
+    
+    .stColumn {
+        width: 100% !important;
+        padding: 0 !important;
+    }
+}
+
+/* Ajusta sidebar para mobile */
+[data-testid="stSidebar"] {
+    width: 100% !important;
+    max-width: 100% !important;
+}
+
+@media (max-width: 768px) {
+    [data-testid="stSidebar"][aria-expanded="true"] {
+        width: 80% !important;
+    }
+}
+
+/* Otimiza expanders */
+.streamlit-expanderHeader {
+    font-size: 1rem !important;
+}
+
+/* Melhora tabelas */
+@media (max-width: 768px) {
+    table {
+        font-size: 0.85rem !important;
+    }
+}
+
+/* Ajusta métricas */
+[data-testid="stMetric"] {
+    padding: 0.5rem !important;
+}
+
+/* Otimiza file uploader */
+[data-testid="stFileUploader"] {
+    padding: 0.5rem !important;
+}
+
+/* Reduz tamanho de títulos em mobile */
+@media (max-width: 768px) {
+    h1 {
+        font-size: 1.5rem !important;
+    }
+    
+    h2 {
+        font-size: 1.25rem !important;
+    }
+    
+    h3 {
+        font-size: 1.1rem !important;
+    }
+}
