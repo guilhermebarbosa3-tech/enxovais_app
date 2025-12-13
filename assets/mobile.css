@@ -40,15 +40,26 @@ input, textarea, select {
     }
 }
 
-/* Ajusta sidebar para mobile */
+/* Ajusta sidebar para telas maiores e comportamentos em mobile */
+/* Não forçar 100% (causava sobreposição). Mantemos largura padrão e
+   controlamos apenas o comportamento no colapso em telas pequenas. */
 [data-testid="stSidebar"] {
-    width: 100% !important;
-    max-width: 100% !important;
+    width: 300px !important;
+    max-width: 300px !important;
 }
 
 @media (max-width: 768px) {
+    /* Quando expandida em mobile, ocupa até 80% da largura e fica acima do conteúdo */
     [data-testid="stSidebar"][aria-expanded="true"] {
         width: 80% !important;
+        max-width: 80% !important;
+        z-index: 1200 !important;
+        box-shadow: 0 0 20px rgba(0,0,0,0.4) !important;
+    }
+
+    /* Quando colapsada em mobile, deslocamos para fora da tela para não sobrepor */
+    [data-testid="stSidebar"][aria-expanded="false"] {
+        transform: translateX(-110%) !important;
     }
 }
 
