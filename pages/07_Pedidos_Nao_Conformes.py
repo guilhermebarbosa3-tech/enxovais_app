@@ -22,6 +22,17 @@ for r in rows:
         
         st.divider()
         
+        # Fotos Originais do Pedido
+        original_photos = from_json(r['photos'], [])
+        if original_photos:
+            st.caption("📷 Fotos Originais do Pedido")
+            photo_cols = st.columns(3)
+            for idx, photo_path in enumerate(original_photos):
+                if os.path.exists(photo_path):
+                    with photo_cols[idx % 3]:
+                        st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
+            st.divider()
+        
         # Tipo e descrição da NC
         kind = st.selectbox("Tipo de NC", ["medida","tecido","cor","acabamento","outro"], key=f"kind_{r['id']}")
         desc = st.text_area("Descrição do problema", key=f"desc_{r['id']}", height=100, placeholder="Descreva detalhadamente o problema encontrado...")
