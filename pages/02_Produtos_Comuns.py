@@ -78,11 +78,11 @@ fotos = photo_uploader("Fotos (múltiplas)")
 # Mostrar preview das fotos carregadas
 if fotos:
     st.write("**Preview das fotos:**")
-    cols = st.columns(4)
+    cols = st.columns(6)
     for idx, foto in enumerate(fotos):
-        col_idx = idx % 4
+        col_idx = idx % 6
         with cols[col_idx]:
-            st.image(foto, use_column_width=True, caption=f"Foto {idx + 1}")
+            st.image(foto, width=150, caption=f"Foto {idx + 1}")
     st.write(f"✅ {len(fotos)} foto(s) carregada(s)")
 
 # Processar submissão do formulário
