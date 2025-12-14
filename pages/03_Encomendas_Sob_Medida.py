@@ -1,4 +1,5 @@
 import streamlit as st
+import time
 from core.db import get_conn, now_iso, to_json, from_json
 from core.models import OrderStatus
 from core.validators import validate_prices
@@ -164,4 +165,5 @@ if button_clicked:
     )
     conn.commit()
     st.toast("✅ Pedido criado e enviado para Status > Pedidos", icon="🎉")
+    time.sleep(1.0)  # Aguarda 1 segundo para o toast aparecer
     st.rerun()
