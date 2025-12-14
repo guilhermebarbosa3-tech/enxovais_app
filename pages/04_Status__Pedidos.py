@@ -7,7 +7,7 @@ from ui.status_badges import badge
 from services.motores.pdf_generator import generate_order_pdf
 from services.messenger import generate_whatsapp_message
 
-st.title("Status • Pedidos")
+st.title("Pedidos")
 conn = get_conn()
 
 rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.CRIADO,)).fetchall()

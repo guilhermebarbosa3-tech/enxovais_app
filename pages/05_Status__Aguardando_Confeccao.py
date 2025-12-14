@@ -4,7 +4,7 @@ from core.models import OrderStatus
 from core.audit import log_change
 from ui.status_badges import badge
 
-st.title("Status • Aguardando Confecção")
+st.title("Aguardando Confecção")
 conn = get_conn()
 rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.AGUARDANDO_CONF,)).fetchall()
 

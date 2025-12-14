@@ -2,7 +2,7 @@ import streamlit as st
 from core.db import get_conn, now_iso
 from core.models import OrderStatus
 
-st.title("Status • Pedidos em Estoque")
+st.title("Pedidos em Estoque")
 conn = get_conn()
 rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.EM_ESTOQUE,)).fetchall()
 
