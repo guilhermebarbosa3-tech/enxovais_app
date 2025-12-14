@@ -163,5 +163,5 @@ if button_clicked:
         (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
     )
     conn.commit()
-    st.success("✅ Pedido criado e enviado para Status > Pedidos")
+    st.toast("✅ Pedido criado e enviado para Status > Pedidos", icon="🎉")
     st.rerun()
