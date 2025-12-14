@@ -70,6 +70,16 @@ with st.form("pedido_comum"):
     
     obs_livre = st.text_area("Observações livres")
     fotos = photo_uploader("Fotos (múltiplas)")
+    
+    # Mostrar preview das fotos carregadas
+    if fotos:
+        st.write("**Preview das fotos:**")
+        cols = st.columns(4)
+        for idx, foto in enumerate(fotos):
+            col_idx = idx % 4
+            with cols[col_idx]:
+                st.image(foto, use_column_width=True, caption=f"Foto {idx + 1}")
+    
     if st.form_submit_button("Concluir Pedido"):
         validate_prices(price_cost, price_sale)
         notes_struct = {"tecido":tecido, "cor":cor, "acabamento":acabamento}
