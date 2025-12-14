@@ -183,9 +183,11 @@ else:
         disabled=['ID', 'Cliente', 'Produto', 'Custo', 'Venda', 'Margem', 'Criado em', 'Status']
     )
     
-    # Desabilitar checkbox para pedidos já pagos
-    for idx in edited_df[edited_df['_settled'] == 1].index:
-        edited_df.loc[idx, 'Selecionar'] = False
+    # Desabilitar checkbox para pedidos já pagos (usando df original que tem as colunas ocultas)
+    if len(df) > 0 and '_settled' in df.columns:
+        for idx in df[df['_settled'] == 1].index:
+            if idx < len(edited_df):
+                edited_df.loc[idx, 'Selecionar'] = False
     
     # Atualizar session_state
     st.session_state['table_state'] = edited_df
@@ -198,10 +200,11 @@ else:
     if len(selected_rows) > 0:
         st.subheader("📈 Simulação do Pagamento (Automática)")
         
-        # Calcular totais
-        total_cost = sum(selected_rows['_cost'])
-        total_sale = sum(selected_rows['_sale'])
-        total_margin = sum(selected_rows['_margin'])
+        # Calcular totais (usar df original que tem as colunas ocultas)
+        selected_indices = selected_rows.index
+        total_cost = sum(df.loc[selected_indices, '_cost']) if '_cost' in df.columns else 0
+        total_sale = sum(df.loc[selected_indices, '_sale']) if '_sale' in df.columns else 0
+        total_margin = sum(df.loc[selected_indices, '_margin']) if '_margin' in df.columns else 0
         margin_percent = (total_margin / total_sale * 100) if total_sale > 0 else 0
         
         # Mostrar métricas
@@ -241,17 +244,19 @@ else:
         col_confirm1, col_confirm2 = st.columns(2)
         with col_confirm1:
             if st.button("✅ Confirmar e Criar Lote", key="confirm_batch", use_container_width=True):
-                order_ids = selected_rows['_order_id'].tolist()
-                batch_id = create_payment_batch(order_ids)
-                st.success(
-                    f"✅ **Lote #{batch_id}** criado com sucesso!\n\n"
-                    f"**Pedidos:** {len(selected_rows)}\n"
-                    f"**Valor Pago:** R$ {payment_value:.2f}\n"
-                    f"**Custo Total:** R$ {total_cost:.2f}\n"
-                    f"**Saldo Pendente:** R$ {total_cost - payment_value:.2f}"
-                )
-                st.session_state['table_state'] = df.copy()
-                st.rerun()
+                if order_ids:
+                    batch_id = create_payment_batch(order_ids)
+                    st.success(
+                        f"✅ **Lote #{batch_id}** criado com sucesso!\n\n"
+                        f"**Pedidos:** {len(selected_rows)}\n"
+                        f"**Valor Pago:** R$ {payment_value:.2f}\n"
+                        f"**Custo Total:** R$ {total_cost:.2f}\n"
+                        f"**Saldo Pendente:** R$ {total_cost - payment_value:.2f}"
+                    )
+                    st.session_state['table_state'] = df.copy()
+                    st.rerun()
+                else:
+                    st.error("Erro: não foi possível obter os IDs dos pedidos")
         
         with col_confirm2:
             if st.button("❌ Cancelar", key="cancel_batch", use_container_width=True):
