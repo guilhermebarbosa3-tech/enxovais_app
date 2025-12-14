@@ -55,8 +55,8 @@ for r in rows:
                     # Salvar fotos do problema
                     saved_photos = []
                     if problem_photos:
-                        for photo in problem_photos:
-                            photo_path = save_and_resize(photo, prefix=f"nc_pedido_{r['id']}_")
+                        for idx, photo in enumerate(problem_photos):
+                            photo_path = save_and_resize(photo, filename_base=f"nc_pedido_{r['id']}_{idx}")
                             saved_photos.append(photo_path)
                     
                     # Gerar PDF
@@ -82,8 +82,8 @@ for r in rows:
                     # Salvar fotos do problema
                     saved_photos = []
                     if problem_photos:
-                        for photo in problem_photos:
-                            photo_path = save_and_resize(photo, prefix=f"nc_pedido_{r['id']}_")
+                        for idx, photo in enumerate(problem_photos):
+                            photo_path = save_and_resize(photo, filename_base=f"nc_pedido_{r['id']}_{idx}")
                             saved_photos.append(photo_path)
                     
                     # Registrar NC
