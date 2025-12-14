@@ -77,11 +77,13 @@ for r in rows:
                     use_container_width=True
                 )
             
-            # Botão de compartilhamento nativo (mobile)
+            # Confirmação antes de compartilhar
+            st.info("📢 Ao compartilhar, o pedido será movido para **'Aguardando Confecção'**")
+            
             col_share, col_cancel = st.columns(2)
             
             with col_share:
-                if st.button("📤 Compartilhar", key=f"share_native_{r['id']}", use_container_width=True):
+                if st.button("📤 Confirmar Compartilhamento", key=f"share_native_{r['id']}", use_container_width=True):
                     # Usar Web Share API via JavaScript
                     share_script = f"""
                     <script>
