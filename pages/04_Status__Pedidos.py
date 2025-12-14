@@ -66,33 +66,52 @@ for r in rows:
         
         with action_cols[2]:
             if st.button("🔄 Compartilhar p/ fornecedor", key=f"send_{r['id']}", use_container_width=True):
-                # 1. Exportar pedido
-                pdf_path = export_order_pdf(r)
-                # 2. Gerar mensagem WhatsApp
-                wa_msg = generate_whatsapp_message(r)
-                # 3. Atualizar status
-                conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
-                # 4. Registrar em shipments
-                conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
-                    (r['id'], "WHATSAPP", now_iso(), pdf_path))
-                conn.commit()
-                log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
-                
-                # Exibir opções
-                st.success("Pedido exportado e pronto para envio!")
-                st.info("**Resumo do pedido para compartilhar:**")
-                st.code(wa_msg)
-                
-                # Gerar link WhatsApp (sem número pré-preenchido, usuário preenche)
-                st.markdown("**Enviar via WhatsApp:**")
-                col_wa, col_copy = st.columns(2)
-                with col_wa:
-                    st.markdown(f"[📱 Abrir WhatsApp Web](https://web.whatsapp.com/)", unsafe_allow_html=True)
-                with col_copy:
-                    st.write("Cole a mensagem acima no WhatsApp")
-                
-                st.divider()
-                st.markdown("✅ Pedido movido para 'Aguardando Confecção'")
+                st.session_state[f"send_mode_{r['id']}"] = True
+        
+        # Modo compartilhamento com confirmação
+        if st.session_state.get(f"send_mode_{r['id']}", False):
+            st.info("📤 Preparando para compartilhar com fornecedor...")
+            
+            # 1. Exportar pedido
+            pdf_path = export_order_pdf(r)
+            # 2. Gerar mensagem WhatsApp
+            wa_msg = generate_whatsapp_message(r)
+            
+            # Exibir resumo
+            st.success("✅ Pedido exportado e pronto para envio!")
+            st.info("**Resumo do pedido para compartilhar:**")
+            st.code(wa_msg)
+            
+            # Gerar link WhatsApp (sem número pré-preenchido, usuário preenche)
+            st.markdown("**Enviar via WhatsApp:**")
+            col_wa, col_copy = st.columns(2)
+            with col_wa:
+                st.markdown(f"[📱 Abrir WhatsApp Web](https://web.whatsapp.com/)", unsafe_allow_html=True)
+            with col_copy:
+                st.write("Cole a mensagem acima no WhatsApp")
+            
+            st.divider()
+            
+            # Botões de confirmação
+            col_confirm, col_cancel = st.columns(2)
+            with col_confirm:
+                if st.button("✅ Confirmar envio ao fornecedor", key=f"confirm_send_{r['id']}", use_container_width=True):
+                    # 3. Atualizar status
+                    conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
+                    # 4. Registrar em shipments
+                    conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
+                        (r['id'], "WHATSAPP", now_iso(), pdf_path))
+                    conn.commit()
+                    log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
+                    
+                    st.session_state[f"send_mode_{r['id']}"] = False
+                    st.success("✅ Pedido movido para 'Aguardando Confecção'")
+                    st.rerun()
+            
+            with col_cancel:
+                if st.button("❌ Cancelar", key=f"cancel_send_{r['id']}", use_container_width=True):
+                    st.session_state[f"send_mode_{r['id']}"] = False
+                    st.rerun()
         
         with action_cols[3]:
             if st.button("🗑️ Excluir", key=f"del_{r['id']}", use_container_width=True):
