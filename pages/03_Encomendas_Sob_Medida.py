@@ -129,6 +129,11 @@ if fotos:
 
 # Processar submissão do formulário
 if button_clicked:
+    # Validar preços
+    if price_cost is None or price_sale is None:
+        st.error("❌ Preço de custo e preço de venda são obrigatórios!")
+        st.stop()
+    
     validate_prices(price_cost, price_sale)
     notes_struct = {
         "medidas": {
