@@ -19,6 +19,18 @@ for r in rows:
         with cols[1]:
             badge(r['status'])
         
+        # Exibir observações
+        if r['notes_free']:
+            st.subheader("📝 Observações")
+            st.write(r['notes_free'])
+        
+        # Exibir especificações estruturadas
+        notes_struct = from_json(r['notes_struct'], {})
+        if notes_struct:
+            st.subheader("⚙️ Especificações")
+            for key, value in notes_struct.items():
+                st.write(f"**{key}**: {value}")
+        
         # Exibir fotos se existirem
         photos = from_json(r['photos'], [])
         if photos:
