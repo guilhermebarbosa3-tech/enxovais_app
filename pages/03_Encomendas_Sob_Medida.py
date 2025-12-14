@@ -68,17 +68,28 @@ if st.session_state.get('pedido_criado'):
     st.session_state['pedido_criado'] = False
     st.rerun()
 
+# SELETORES EM CASCATA - FORA DO FORM (para atualizar dinamicamente)
+st.subheader("📦 Selecione o Produto")
+
+client_sel = st.selectbox("Cliente", client_list)
+
+# Categoria
+category = st.selectbox("Categoria", list(hierarchy.keys()) if hierarchy else [])
+
+# Tipos disponíveis baseado na categoria selecionada
+tipos_disponiveis = list(hierarchy.get(category, {}).keys()) if category else []
+type_ = st.selectbox("Tipo", tipos_disponiveis if tipos_disponiveis else ["Nenhum tipo cadastrado"])
+
+# Produtos disponíveis baseado na categoria E tipo selecionados
+produtos_disponiveis = hierarchy.get(category, {}).get(type_, []) if category and type_ else []
+product = st.selectbox("Produto", produtos_disponiveis if produtos_disponiveis else ["Nenhum produto cadastrado"])
+
+st.divider()
+
+# FORM - com preços e observações
 with st.form("pedido_medida"):
-    client_sel = st.selectbox("Cliente", client_list)
-    
-    # Hierarquia em cascata
-    category = st.selectbox("Categoria", list(hierarchy.keys()) if hierarchy else [])
-    
-    tipos_disponiveis = list(hierarchy.get(category, {}).keys()) if category else []
-    type_ = st.selectbox("Tipo", tipos_disponiveis if tipos_disponiveis else ["Nenhum tipo cadastrado"])
-    
-    produtos_disponiveis = hierarchy.get(category, {}).get(type_, []) if category and type_ else []
-    product = st.selectbox("Produto", produtos_disponiveis if produtos_disponiveis else ["Nenhum produto cadastrado"])
+    st.write(f"**Cliente:** {client_sel}")
+    st.write(f"**Produto:** {category} › {type_} › {product}")
     
     price_cost = st.number_input("Preço de custo", value=None, min_value=0.0, step=1.0)
     price_sale = st.number_input("Preço de venda", value=None, min_value=0.0, step=1.0)
