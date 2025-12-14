@@ -85,7 +85,9 @@ with st.form("pedido_medida"):
 
 # Upload de fotos FORA do form para atualizar preview dinamicamente
 st.subheader("📸 Fotos do Produto")
-fotos = photo_uploader("Fotos (múltiplas)")
+fotos_raw = photo_uploader("Fotos (múltiplas)")
+# Garantir que fotos é sempre uma lista
+fotos = fotos_raw if isinstance(fotos_raw, list) else ([fotos_raw] if fotos_raw else None)
 
 # Mostrar preview das fotos carregadas
 if fotos:
