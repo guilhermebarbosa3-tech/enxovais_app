@@ -6,6 +6,12 @@ from services.payments import create_payment_batch
 st.title("💰 Financeiro")
 conn = get_conn()
 
+# Helper para formatar data no padrão brasileiro
+def format_br_date(date_obj):
+    if isinstance(date_obj, str):
+        date_obj = datetime.fromisoformat(date_obj)
+    return date_obj.strftime("%d/%m/%Y %H:%M")
+
 # Filtro por período
 st.subheader("Filtros")
 col1, col2 = st.columns(2)
@@ -50,7 +56,7 @@ else:
             with col3:
                 st.metric("Margem", f"R$ {r['margin']:.2f}", delta=f"{(r['margin']/r['sale']*100 if r['sale'] > 0 else 0):.1f}%")
             
-            st.caption(f"Criado em: {r['created_at']}")
+            st.caption(f"Criado em: {format_br_date(r['created_at'])}")
             
             if st.checkbox("Incluir no pagamento", key=f"pick_{r['id']}"):
                 st.session_state['selected_entries'][r['id']] = r
