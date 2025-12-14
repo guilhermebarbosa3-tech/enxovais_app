@@ -6,11 +6,16 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 from datetime import datetime
 import os
+import tempfile
 from pathlib import Path
 from PIL import Image as PILImage
 
 EXPORTS_DIR = Path("exports")
 EXPORTS_DIR.mkdir(exist_ok=True)
+
+# Diretório temporário para processamento de fotos
+TEMP_DIR = Path(tempfile.gettempdir()) / "enxovais_nc"
+TEMP_DIR.mkdir(exist_ok=True)
 
 def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
     """
@@ -125,7 +130,7 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
                     img.thumbnail((max_width, max_height), PILImage.Resampling.LANCZOS)
                     
                     # Salvar temporariamente em alta qualidade
-                    temp_path = f"/tmp/nc_photo_{idx}.jpg"
+                    temp_path = str(TEMP_DIR / f"nc_photo_{idx}.jpg")
                     img.save(temp_path, quality=85)
                     
                     photo_elements.append(Image(temp_path, width=2*inch, height=2*inch))
@@ -155,8 +160,14 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
                     max_height = 2.5 * inch
                     img.thumbnail((max_width, max_height), PILImage.Resampling.LANCZOS)
                     
-                    temp_path = f"/tmp/original_photo_{idx}.jpg"
+                    temp_path = str(TEMP_DIR / f"original_photo_{idx}.jpg")
                     img.save(temp_path, quality=85)
+                    
+                    original_elements.append(Image(temp_path, width=2*inch, height=2*inch))
+                    if (idx + 1) % 2 == 0:
+                        original_elements.append(Spacer(1, 0.1*inch))
+                except Exception as e:
+                    story.append(Paragraph(f"❌ Erro ao carregar foto original {idx + 1}: {e}", styles['Normal']))
                     
                     original_elements.append(Image(temp_path, width=2*inch, height=2*inch))
                     if (idx + 1) % 2 == 0:
