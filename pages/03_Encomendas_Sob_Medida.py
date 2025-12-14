@@ -81,37 +81,43 @@ with st.form("pedido_medida"):
     acabamento = st.selectbox("Acabamento", acabamentos if acabamentos else ["Configure em Configurações"])
     
     obs_livre = st.text_area("Observações livres")
-    fotos = photo_uploader("Fotos (múltiplas)")
-    
-    # Mostrar preview das fotos carregadas
-    if fotos:
-        st.write("**Preview das fotos:**")
-        cols = st.columns(4)
-        for idx, foto in enumerate(fotos):
-            col_idx = idx % 4
-            with cols[col_idx]:
-                st.image(foto, use_column_width=True, caption=f"Foto {idx + 1}")
-    
-    if st.form_submit_button("Concluir Pedido"):
-        validate_prices(price_cost, price_sale)
-        notes_struct = {
-            "medidas": {
-                "largura": largura,
-                "altura": altura,
-                "profundidade": profundidade,
-                "extras": medidas_extra
-            },
-            "tecido": tecido,
-            "cor": cor,
-            "acabamento": acabamento
-        }
-        photos_paths = []  # TODO: salvar via storage
-        conn.execute(
-            """
-            INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
-        )
-        conn.commit()
-        st.success("Pedido criado e enviado para Status > Pedidos")
+    button_clicked = st.form_submit_button("Concluir Pedido")
+
+# Upload de fotos FORA do form para atualizar preview dinamicamente
+st.subheader("📸 Fotos do Produto")
+fotos = photo_uploader("Fotos (múltiplas)")
+
+# Mostrar preview das fotos carregadas
+if fotos:
+    st.write("**Preview das fotos:**")
+    cols = st.columns(4)
+    for idx, foto in enumerate(fotos):
+        col_idx = idx % 4
+        with cols[col_idx]:
+            st.image(foto, use_column_width=True, caption=f"Foto {idx + 1}")
+    st.write(f"✅ {len(fotos)} foto(s) carregada(s)")
+
+# Processar submissão do formulário
+if button_clicked:
+    validate_prices(price_cost, price_sale)
+    notes_struct = {
+        "medidas": {
+            "largura": largura,
+            "altura": altura,
+            "profundidade": profundidade,
+            "extras": medidas_extra
+        },
+        "tecido": tecido,
+        "cor": cor,
+        "acabamento": acabamento
+    }
+    photos_paths = []  # TODO: salvar via storage
+    conn.execute(
+        """
+        INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+        """,
+        (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
+    )
+    conn.commit()
+    st.success("Pedido criado e enviado para Status > Pedidos")
