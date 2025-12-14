@@ -195,76 +195,80 @@ else:
     st.divider()
     
     # SIMULAÇÃO AUTOMÁTICA
-    selected_rows = edited_df[edited_df['Selecionar'] == True]
-    
-    if len(selected_rows) > 0:
-        st.subheader("📈 Simulação do Pagamento (Automática)")
+    # Se o DataFrame estiver vazio (nenhum item no filtro), mostrar mensagem
+    if len(edited_df) == 0:
+        st.info("ℹ️ Nenhum pedido encontrado com o filtro selecionado")
+    else:
+        selected_rows = edited_df[edited_df['Selecionar'] == True]
         
-        # Calcular totais (usar df original que tem as colunas ocultas)
-        selected_indices = selected_rows.index
-        total_cost = sum(df.loc[selected_indices, '_cost']) if '_cost' in df.columns else 0
-        total_sale = sum(df.loc[selected_indices, '_sale']) if '_sale' in df.columns else 0
-        total_margin = sum(df.loc[selected_indices, '_margin']) if '_margin' in df.columns else 0
-        margin_percent = (total_margin / total_sale * 100) if total_sale > 0 else 0
-        
-        # Mostrar métricas
-        col1, col2, col3, col4 = st.columns(4)
-        with col1:
-            st.metric("📦 Pedidos", len(selected_rows))
-        with col2:
-            st.metric("💰 Custo Total", f"R$ {total_cost:.2f}")
-        with col3:
-            st.metric("💵 Venda Total", f"R$ {total_sale:.2f}")
-        with col4:
-            st.metric("📊 Margem Total", f"R$ {total_margin:.2f}", delta=f"{margin_percent:.1f}%")
-        
-        st.divider()
-        
-        # Input para pagamento parcial
-        st.subheader("💳 Registrar Pagamento")
-        
-        col_input1, col_input2 = st.columns([2, 1])
-        with col_input1:
-            payment_value = st.number_input(
-                "Valor a pagar ao fornecedor",
-                min_value=0.0,
-                value=total_cost,
-                step=0.01,
-                format="%.2f"
-            )
-        
-        with col_input2:
-            st.metric("Saldo", f"R$ {total_cost - payment_value:.2f}")
-        
-        st.divider()
-        
-        # Confirmação
-        st.warning(f"⚠️ Você está prestes a **registrar pagamento de R$ {payment_value:.2f}** referente a **{len(selected_rows)} pedidos**")
-        
-        col_confirm1, col_confirm2 = st.columns(2)
-        with col_confirm1:
-            if st.button("✅ Confirmar e Criar Lote", key="confirm_batch", use_container_width=True):
-                # Obter IDs dos pedidos selecionados
-                selected_indices = selected_rows.index
-                order_ids = df.loc[selected_indices, '_order_id'].tolist() if '_order_id' in df.columns else []
-                
-                if order_ids:
-                    batch_id = create_payment_batch(order_ids)
-                    st.success(
-                        f"✅ **Lote #{batch_id}** criado com sucesso!\n\n"
-                        f"**Pedidos:** {len(selected_rows)}\n"
-                        f"**Valor Pago:** R$ {payment_value:.2f}\n"
-                        f"**Custo Total:** R$ {total_cost:.2f}\n"
-                        f"**Saldo Pendente:** R$ {total_cost - payment_value:.2f}"
-                    )
+        if len(selected_rows) > 0:
+            st.subheader("📈 Simulação do Pagamento (Automática)")
+            
+            # Calcular totais (usar df original que tem as colunas ocultas)
+            selected_indices = selected_rows.index
+            total_cost = sum(df.loc[selected_indices, '_cost']) if '_cost' in df.columns else 0
+            total_sale = sum(df.loc[selected_indices, '_sale']) if '_sale' in df.columns else 0
+            total_margin = sum(df.loc[selected_indices, '_margin']) if '_margin' in df.columns else 0
+            margin_percent = (total_margin / total_sale * 100) if total_sale > 0 else 0
+            
+            # Mostrar métricas
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("📦 Pedidos", len(selected_rows))
+            with col2:
+                st.metric("💰 Custo Total", f"R$ {total_cost:.2f}")
+            with col3:
+                st.metric("💵 Venda Total", f"R$ {total_sale:.2f}")
+            with col4:
+                st.metric("📊 Margem Total", f"R$ {total_margin:.2f}", delta=f"{margin_percent:.1f}%")
+            
+            st.divider()
+            
+            # Input para pagamento parcial
+            st.subheader("💳 Registrar Pagamento")
+            
+            col_input1, col_input2 = st.columns([2, 1])
+            with col_input1:
+                payment_value = st.number_input(
+                    "Valor a pagar ao fornecedor",
+                    min_value=0.0,
+                    value=total_cost,
+                    step=0.01,
+                    format="%.2f"
+                )
+            
+            with col_input2:
+                st.metric("Saldo", f"R$ {total_cost - payment_value:.2f}")
+            
+            st.divider()
+            
+            # Confirmação
+            st.warning(f"⚠️ Você está prestes a **registrar pagamento de R$ {payment_value:.2f}** referente a **{len(selected_rows)} pedidos**")
+            
+            col_confirm1, col_confirm2 = st.columns(2)
+            with col_confirm1:
+                if st.button("✅ Confirmar e Criar Lote", key="confirm_batch", use_container_width=True):
+                    # Obter IDs dos pedidos selecionados
+                    selected_indices = selected_rows.index
+                    order_ids = df.loc[selected_indices, '_order_id'].tolist() if '_order_id' in df.columns else []
+                    
+                    if order_ids:
+                        batch_id = create_payment_batch(order_ids)
+                        st.success(
+                            f"✅ **Lote #{batch_id}** criado com sucesso!\n\n"
+                            f"**Pedidos:** {len(selected_rows)}\n"
+                            f"**Valor Pago:** R$ {payment_value:.2f}\n"
+                            f"**Custo Total:** R$ {total_cost:.2f}\n"
+                            f"**Saldo Pendente:** R$ {total_cost - payment_value:.2f}"
+                        )
+                        st.session_state['table_state'] = df.copy()
+                        st.rerun()
+                    else:
+                        st.error("Erro: não foi possível obter os IDs dos pedidos")
+            
+            with col_confirm2:
+                if st.button("❌ Cancelar", key="cancel_batch", use_container_width=True):
                     st.session_state['table_state'] = df.copy()
                     st.rerun()
-                else:
-                    st.error("Erro: não foi possível obter os IDs dos pedidos")
-        
-        with col_confirm2:
-            if st.button("❌ Cancelar", key="cancel_batch", use_container_width=True):
-                st.session_state['table_state'] = df.copy()
-                st.rerun()
-    else:
-        st.info("👆 Selecione pelo menos um pedido pendente para simular o pagamento")
+        else:
+            st.info("👆 Selecione pelo menos um pedido pendente para simular o pagamento")
