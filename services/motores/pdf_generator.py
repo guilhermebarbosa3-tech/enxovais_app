@@ -2,6 +2,7 @@
 import os
 from datetime import datetime
 from io import BytesIO
+from typing import Optional
 from PIL import Image
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import inch
@@ -12,7 +13,7 @@ from reportlab.lib import colors
 from core.db import from_json
 
 
-def generate_order_pdf(order_row, photos_paths: list = None) -> str:
+def generate_order_pdf(order_row, photos_paths: Optional[list] = None) -> str:
     """
     Gera PDF completo do pedido com fotos embutidas.
     
