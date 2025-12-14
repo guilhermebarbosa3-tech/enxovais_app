@@ -63,15 +63,11 @@ for r in rows:
         
         # Modo compartilhamento
         if st.session_state.get(f"send_mode_{r['id']}", False):
-            st.info("📤 Gerando PDF do pedido com fotos...")
-            
-            # 1. Gerar PDF com fotos
+            # Gerar PDF com fotos
             pdf_path = generate_order_pdf(r)
+            st.toast("✅ PDF gerado com sucesso!", icon="📄")
             
-            # Exibir confirmação
-            st.success("✅ PDF gerado com sucesso!")
-            
-            # 2. Oferecer download direto
+            # Oferecer download direto
             with open(pdf_path, 'rb') as pdf_file:
                 st.download_button(
                     label="⬇️ Baixar PDF",
@@ -81,14 +77,11 @@ for r in rows:
                     use_container_width=True
                 )
             
-            st.divider()
-            
-            # 3. Botão de compartilhamento nativo (mobile)
-            st.markdown("**Compartilhar para:**")
+            # Botão de compartilhamento nativo (mobile)
             col_share, col_cancel = st.columns(2)
             
             with col_share:
-                if st.button("📤 Compartilhar (WhatsApp, Email, etc)", key=f"share_native_{r['id']}", use_container_width=True):
+                if st.button("📤 Compartilhar", key=f"share_native_{r['id']}", use_container_width=True):
                     # Usar Web Share API via JavaScript
                     share_script = f"""
                     <script>
