@@ -93,9 +93,8 @@ else:
     )
     
     # Desabilitar checkbox para pedidos já pagos
-    for idx, row in edited_df.iterrows():
-        if row['_settled'] == 1:
-            edited_df.at[idx, 'Selecionar'] = False
+    for idx in edited_df[edited_df['_settled'] == 1].index:
+        edited_df.loc[idx, 'Selecionar'] = False
     
     # Atualizar session_state
     st.session_state['table_state'] = edited_df

@@ -138,8 +138,8 @@ def load_config(key: str, default: Any):
     """Carrega configuração do banco (centralizado)"""
     conn = get_conn()
     conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-    conn.execute("SELECT value FROM config WHERE key=?", (key,))
-    row = conn.fetchone()
+    cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))
+    row = cur.fetchone()
     if row:
         return from_json(row[0], default)
     else:
