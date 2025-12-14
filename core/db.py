@@ -132,3 +132,24 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
         (entity, entity_id, action, field, before_json, after_json, user, now_iso())
     )
     conn.commit()
+
+
+def load_config(key: str, default: Any):
+    """Carrega configuração do banco (centralizado)"""
+    conn = get_conn()
+    conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute("SELECT value FROM config WHERE key=?", (key,))
+    row = conn.fetchone()
+    if row:
+        return from_json(row[0], default)
+    else:
+        # Se não existe, salva o padrão
+        save_config(key, default)
+        return default
+
+
+def save_config(key: str, value: Any):
+    """Salva configuração no banco (centralizado)"""
+    conn = get_conn()
+    conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))
+    conn.commit()

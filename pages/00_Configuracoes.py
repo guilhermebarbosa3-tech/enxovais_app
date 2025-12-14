@@ -1,27 +1,9 @@
 import streamlit as st
-from core.db import get_conn, to_json, from_json
+from core.db import get_conn, to_json, from_json, load_config, save_config
 
 st.title("⚙️ Configurações do Sistema")
 
 conn = get_conn()
-
-def load_config(key: str, default):
-    """Carrega configuração do banco"""
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-    cur.execute("SELECT value FROM config WHERE key=?", (key,))
-    row = cur.fetchone()
-    if row:
-        return from_json(row[0], default)
-    else:
-        # Se não existe, salva o padrão
-        save_config(key, default)
-        return default
-
-def save_config(key: str, value):
-    """Salva configuração no banco"""
-    conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))
-    conn.commit()
 
 # Tabs para organizar
 tab1, tab2 = st.tabs(["📦 Hierarquia de Produtos", "🧵 Materiais"])

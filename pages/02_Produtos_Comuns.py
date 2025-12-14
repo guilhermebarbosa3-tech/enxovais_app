@@ -1,5 +1,5 @@
 import streamlit as st
-from core.db import get_conn, now_iso, to_json, from_json
+from core.db import get_conn, now_iso, to_json, from_json, load_config, save_config
 from core.models import OrderStatus
 from core.validators import validate_prices
 from core.storage import save_and_resize
@@ -7,19 +7,6 @@ from ui.components import section, photo_uploader
 
 st.title("Produtos Comuns — Novo Pedido")
 conn = get_conn()
-
-def load_config(key: str, default):
-    cur = conn.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-    cur.execute("SELECT value FROM config WHERE key=?", (key,))
-    row = cur.fetchone()
-    if row:
-        return from_json(row[0], default)
-    else:
-        # Se não existe, salva o padrão
-        conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(default)))
-        conn.commit()
-        return default
 
 # Buscar últimos 5 clientes usados (recentes)
 recentes = conn.execute(
