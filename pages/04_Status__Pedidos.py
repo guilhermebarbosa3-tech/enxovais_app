@@ -65,60 +65,45 @@ for r in rows:
         
         # Modo compartilhamento
         if st.session_state.get(f"send_mode_{r['id']}", False):
+            # Gerar PDF com fotos automaticamente
+            pdf_path = generate_order_pdf(r)
+            st.success("✅ PDF gerado com sucesso!")
+            
+            # Botão de download (não muda status)
+            with open(pdf_path, 'rb') as pdf_file:
+                st.download_button(
+                    label="⬇️ Baixar PDF",
+                    data=pdf_file,
+                    file_name=f"pedido_{r['id']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+            
             st.divider()
-            st.subheader("📤 Opções de Compartilhamento")
             
-            try:
-                # Gerar PDF com fotos
-                pdf_path = generate_order_pdf(r)
-                st.toast("✅ PDF gerado com sucesso!", icon="📄")
-                
-                # Oferecer download direto
-                with open(pdf_path, 'rb') as pdf_file:
-                    st.download_button(
-                        label="⬇️ Baixar PDF",
-                        data=pdf_file,
-                        file_name=f"pedido_{r['id']}.pdf",
-                        mime="application/pdf",
-                        use_container_width=True
-                    )
-                
-                # Confirmação antes de compartilhar
-                st.info("📢 Ao compartilhar, o pedido será movido para **'Aguardando Confecção'**")
-                
-                col1, col2, col3 = st.columns(3)
+            # Informação e botões de ação
+            st.info("📢 Deseja compartilhar e enviar para confecção?")
             
-            with col1:
-                if st.button("💬 WhatsApp", key=f"whatsapp_{r['id']}", use_container_width=True):
-                    # Gerar mensagem e link do WhatsApp
-                    message = generate_whatsapp_message(r)
-                    whatsapp_url = f"https://wa.me/?text={urllib.parse.quote(message)}"
-                    st.markdown(f"[Abrir WhatsApp]({whatsapp_url})", unsafe_allow_html=True)
-                    
-                    # Atualizar status
-                    conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
-                    conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
-                        (r['id'], "WHATSAPP", now_iso(), ""))
-                    conn.commit()
-                    log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
-                    
-                    st.session_state[f"send_mode_{r['id']}"] = False
-                    st.success("✅ Pedido compartilhado via WhatsApp e movido para 'Aguardando Confecção'")
-                    st.rerun()
+            col_share, col_cancel = st.columns(2)
             
-            with col2:
-                if st.button("📤 Compartilhar", key=f"share_native_{r['id']}", use_container_width=True):
-                    # Usar Web Share API via JavaScript
+            with col_share:
+                if st.button("📱 Compartilhar PDF", key=f"share_native_{r['id']}", use_container_width=True):
+                    # Usar Web Share API via JavaScript para compartilhar PDF
                     share_script = f"""
                     <script>
                     if (navigator.share) {{
-                        navigator.share({{
-                            title: 'Pedido #{r['id']}',
-                            text: 'Pedido do cliente {r['client_name']}',
-                            files: [new File([''], 'pedido_{r['id']}.pdf', {{ type: 'application/pdf' }})]
-                        }}).catch(err => console.log('Erro ao compartilhar:', err));
+                        fetch('{pdf_path}')
+                        .then(res => res.blob())
+                        .then(blob => {{
+                            const file = new File([blob], 'pedido_{r['id']}.pdf', {{ type: 'application/pdf' }});
+                            navigator.share({{
+                                title: 'Pedido #{r['id']}',
+                                text: 'Pedido do cliente {r['client_name']}',
+                                files: [file]
+                            }}).catch(err => console.log('Erro ao compartilhar:', err));
+                        }});
                     }} else {{
-                        alert('Seu navegador não suporta compartilhamento. Use o botão de baixar.');
+                        alert('Seu navegador não suporta compartilhamento. Use o botão Baixar PDF.');
                     }}
                     </script>
                     """
@@ -135,14 +120,8 @@ for r in rows:
                     st.success("✅ Pedido compartilhado e movido para 'Aguardando Confecção'")
                     st.rerun()
             
-            with col3:
+            with col_cancel:
                 if st.button("❌ Cancelar", key=f"cancel_share_{r['id']}", use_container_width=True):
-                    st.session_state[f"send_mode_{r['id']}"] = False
-                    st.rerun()
-            
-            except Exception as e:
-                st.error(f"❌ Erro ao gerar PDF: {str(e)}")
-                if st.button("❌ Fechar", key=f"close_error_{r['id']}", use_container_width=True):
                     st.session_state[f"send_mode_{r['id']}"] = False
                     st.rerun()
         
