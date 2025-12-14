@@ -1,0 +1,754 @@
+# Estoque Exonvais — Esqueleto v1
+
+Estrutura modular multipage (Streamlit) com SQLite e stubs essenciais. Copie os arquivos para um repositório com a mesma árvore. Rode com `streamlit run app.py`.
+
+---
+
+## Árvore do projeto
+
+```
+estoque_exonvais/
+├─ app.py
+├─ pages/
+│  ├─ 01_Clientes.py
+│  ├─ 02_Produtos_Comuns.py
+│  ├─ 03_Encomendas_Sob_Medida.py
+│  ├─ 04_Status__Pedidos.py
+│  ├─ 05_Status__Aguardando_Confeccao.py
+│  ├─ 06_Status__Pedidos_em_Estoque.py
+│  ├─ 07_Status__Nao_Conformes.py
+│  ├─ 08_Financeiro.py
+│  └─ 09_Relatorios.py
+├─ core/
+│  ├─ db.py
+│  ├─ models.py
+│  ├─ audit.py
+│  ├─ storage.py
+│  └─ validators.py
+├─ services/
+│  ├─ exporter.py
+│  ├─ messenger.py
+│  ├─ payments.py
+│  └─ quality.py
+├─ ui/
+│  ├─ components.py
+│  └─ status_badges.py
+├─ uploads/
+├─ assets/
+├─ requirements.txt
+└─ README.md
+```
+
+---
+
+## requirements.txt
+
+```txt
+streamlit==1.39.0
+pillow==10.4.0
+python-dateutil==2.9.0.post0
+```
+
+---
+
+## app.py
+
+```python
+import streamlit as st
+from core.db import init_db, get_conn
+from core.models import OrderStatus
+
+st.set_page_config(page_title="Estoque Exonvais", page_icon="🧵", layout="wide")
+
+init_db()
+
+st.title("🧵 Estoque Exonvais — Dashboard")
+
+# KPIs simples (stub)
+conn = get_conn()
+cur = conn.cursor()
+cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.CRIADO,))
+criadas = cur.fetchone()[0]
+cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.AGUARDANDO_CONF,))
+aguard = cur.fetchone()[0]
+cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.EM_ESTOQUE,))
+estoque = cur.fetchone()[0]
+
+col1, col2, col3 = st.columns(3)
+col1.metric("Pedidos Criados", criadas)
+col2.metric("Aguardando Confecção", aguard)
+col3.metric("Em Estoque", estoque)
+
+st.info("Use o menu 'pages' à esquerda para navegar pelas fases.")
+```
+
+---
+
+## core/models.py
+
+```python
+from dataclasses import dataclass
+from typing import Optional
+
+class OrderStatus:
+    CRIADO = "CRIADO"
+    ENVIADO_FORNECEDOR = "ENVIADO_FORNECEDOR"
+    AGUARDANDO_CONF = "AGUARDANDO_CONF"
+    RECEBIDO_CONF = "RECEBIDO_CONF"
+    RECEBIDO_NC = "RECEBIDO_NC"
+    EM_ESTOQUE = "EM_ESTOQUE"
+    ENTREGUE = "ENTREGUE"
+    FINALIZADO_FIN = "FINALIZADO_FIN"
+
+@dataclass
+class Client:
+    id: Optional[int]
+    name: str
+    address: str
+    cpf: str
+    phone: str
+    status: str  # ADIMPLENTE | INADIMPLENTE
+```
+
+---
+
+## core/db.py
+
+```python
+import sqlite3, json, os, datetime
+from typing import Any, Dict
+
+DB_PATH = os.path.join(os.path.dirname(__file__), "..", "exonvais.db")
+DB_PATH = os.path.abspath(DB_PATH)
+
+SCHEMA_SQL = r"""
+PRAGMA journal_mode=WAL;
+
+CREATE TABLE IF NOT EXISTS clients (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  address TEXT,
+  cpf TEXT,
+  phone TEXT,
+  status TEXT DEFAULT 'ADIMPLENTE'
+);
+
+CREATE TABLE IF NOT EXISTS product_catalog (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  product TEXT NOT NULL,
+  measure_based INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  product TEXT NOT NULL,
+  price_cost REAL NOT NULL,
+  price_sale REAL NOT NULL,
+  notes_struct TEXT DEFAULT '{}',
+  notes_free TEXT DEFAULT '',
+  photos TEXT DEFAULT '[]',
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(client_id) REFERENCES clients(id)
+);
+
+CREATE TABLE IF NOT EXISTS shipments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL,
+  medium TEXT,
+  when_ts TEXT NOT NULL,
+  document_path TEXT,
+  FOREIGN KEY(order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS nonconformities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  description TEXT,
+  photos TEXT DEFAULT '[]',
+  count INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL,
+  cost REAL NOT NULL,
+  sale REAL NOT NULL,
+  margin REAL NOT NULL,
+  settled INTEGER DEFAULT 0,
+  batch_id INTEGER,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  total REAL NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  field TEXT,
+  before TEXT,
+  after TEXT,
+  user TEXT,
+  ts TEXT NOT NULL
+);
+"""
+
+_conn = None
+
+def get_conn():
+    global _conn
+    if _conn is None:
+        _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    _conn.row_factory = sqlite3.Row
+    return _conn
+
+
+def init_db():
+    conn = get_conn()
+    conn.executescript(SCHEMA_SQL)
+    conn.commit()
+
+
+def now_iso() -> str:
+    return datetime.datetime.utcnow().isoformat()
+
+
+def to_json(obj):
+    return json.dumps(obj, ensure_ascii=False)
+
+
+def from_json(txt, default):
+    try:
+        return json.loads(txt) if txt else default
+    except Exception:
+        return default
+
+
+def audit(entity: str, entity_id: int, action: str, field: str = None, before: Any = None, after: Any = None, user: str = "system"):
+    conn = get_conn()
+    conn.execute(
+        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
+        (entity, entity_id, action, field, to_json(before) if before is not None else None, to_json(after) if after is not None else None, user, now_iso())
+    )
+    conn.commit()
+```
+
+---
+
+## core/audit.py
+
+```python
+from .db import audit as audit_insert
+
+def log_change(entity, entity_id, action, field=None, before=None, after=None, user="system"):
+    audit_insert(entity, entity_id, action, field, before, after, user)
+```
+
+---
+
+## core/storage.py
+
+```python
+import os
+from PIL import Image
+from .db import to_json
+
+BASE_UPLOAD = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
+os.makedirs(BASE_UPLOAD, exist_ok=True)
+
+def save_and_resize(img_file, filename_base: str, max_w: int = 1200):
+    """img_file: streamlit UploadedFile; retorna caminho salvo."""
+    img = Image.open(img_file)
+    w, h = img.size
+    if w > max_w:
+        ratio = max_w / float(w)
+        img = img.resize((max_w, int(h * ratio)))
+    fname = f"{filename_base}.jpg"
+    path = os.path.join(BASE_UPLOAD, fname)
+    img.save(path, format="JPEG", quality=85)
+    return path
+```
+
+---
+
+## core/validators.py
+
+```python
+from typing import Dict
+
+def validate_prices(cost: float, sale: float) -> None:
+    assert cost is not None and sale is not None, "Preços obrigatórios"
+    assert cost >= 0 and sale >= 0, "Preços inválidos"
+```
+
+---
+
+## ui/status_badges.py
+
+```python
+import streamlit as st
+from core.models import OrderStatus
+
+def badge(status: str):
+    color = {
+        OrderStatus.CRIADO: "gray",
+        OrderStatus.ENVIADO_FORNECEDOR: "blue",
+        OrderStatus.AGUARDANDO_CONF: "blue",
+        OrderStatus.RECEBIDO_CONF: "green",
+        OrderStatus.RECEBIDO_NC: "red",
+        OrderStatus.EM_ESTOQUE: "purple",
+        OrderStatus.ENTREGUE: "green",
+        OrderStatus.FINALIZADO_FIN: "green",
+    }.get(status, "gray")
+    st.markdown(f"<span style='padding:4px 8px;border-radius:999px;background:{color};color:white;font-size:12px'>{status}</span>", unsafe_allow_html=True)
+```
+
+---
+
+## ui/components.py
+
+```python
+import streamlit as st
+
+def section(title: str):
+    st.subheader(title)
+    st.divider()
+
+def confirm_dialog(label: str) -> bool:
+    return st.checkbox(label, value=False, key=f"confirm_{label}")
+
+
+def photo_uploader(label: str, accept_multiple=True):
+    return st.file_uploader(label, type=["jpg","jpeg","png"], accept_multiple_files=accept_multiple)
+```
+
+---
+
+## services/exporter.py (stub)
+
+```python
+# TODO: gerar PDF/arquivo de pedido para fornecedor
+# Recebe pedido + fotos e cria um PDF. Retorna caminho.
+
+def export_order_pdf(order_row) -> str:
+    return ""  # implementar
+```
+
+---
+
+## services/messenger.py (stub)
+
+```python
+# TODO: integrar com API/URL-deeplink do WhatsApp (ou exibir QR/link)
+
+def share_via_whatsapp(text: str):
+    pass
+```
+
+---
+
+## services/payments.py
+
+```python
+from core.db import get_conn
+
+def create_payment_batch(order_ids: list[int]) -> int:
+    conn = get_conn()
+    cur = conn.cursor()
+    # soma custos
+    qmarks = ",".join(["?"]*len(order_ids))
+    cur.execute(f"SELECT SUM(cost) FROM finance_entries WHERE order_id IN ({qmarks}) AND settled=0", order_ids)
+    total = cur.fetchone()[0] or 0.0
+    cur.execute("INSERT INTO payment_batches(total, created_at) VALUES (?, datetime('now'))", (total,))
+    batch_id = cur.lastrowid
+    cur.execute(f"UPDATE finance_entries SET settled=1, batch_id=? WHERE order_id IN ({qmarks}) AND settled=0", [batch_id, *order_ids])
+    conn.commit()
+    return batch_id
+```
+
+---
+
+## services/quality.py (stub)
+
+```python
+# Helpers de Não Conformidade (estatísticas, reincidência)
+```
+
+---
+
+## pages/01_Clientes.py
+
+```python
+import streamlit as st
+from core.db import get_conn
+from ui.components import section
+
+st.title("Clientes")
+conn = get_conn()
+
+with st.form("novo_cliente"):
+    name = st.text_input("Nome")
+    address = st.text_input("Endereço")
+    cpf = st.text_input("CPF")
+    phone = st.text_input("Telefone")
+    status = st.selectbox("Status", ["ADIMPLENTE","INADIMPLENTE"])
+    if st.form_submit_button("Salvar"):
+        conn.execute("INSERT INTO clients(name,address,cpf,phone,status) VALUES (?,?,?,?,?)", (name,address,cpf,phone,status))
+        conn.commit()
+        st.success("Cliente salvo")
+
+section("Lista")
+rows = conn.execute("SELECT * FROM clients ORDER BY id DESC").fetchall()
+for r in rows:
+    st.write(f"#{r['id']} — {r['name']} ({r['status']})")
+```
+
+---
+
+## pages/02_Produtos_Comuns.py
+
+```python
+import streamlit as st
+from core.db import get_conn, now_iso, to_json
+from core.models import OrderStatus
+from core.validators import validate_prices
+from ui.components import section, photo_uploader
+
+st.title("Produtos Comuns — Novo Pedido")
+conn = get_conn()
+
+clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()
+client_map = {f"{c['name']} (#{c['id']})": c['id'] for c in clients}
+
+with st.form("pedido_comum"):
+    client_sel = st.selectbox("Cliente", list(client_map.keys()))
+    category = st.text_input("Categoria (ex: Lençol)")
+    type_ = st.text_input("Tipo (ex: Solteiro/Casal)")
+    product = st.text_input("Produto (ex: 3 peças, box, viúva)")
+    price_cost = st.number_input("Preço de custo", min_value=0.0, step=1.0)
+    price_sale = st.number_input("Preço de venda", min_value=0.0, step=1.0)
+    tecido = st.text_input("Tecido")
+    cor = st.text_input("Cor")
+    acabamento = st.text_input("Acabamento")
+    obs_livre = st.text_area("Observações livres")
+    fotos = photo_uploader("Fotos (múltiplas)")
+    if st.form_submit_button("Concluir Pedido"):
+        validate_prices(price_cost, price_sale)
+        notes_struct = {"tecido":tecido, "cor":cor, "acabamento":acabamento}
+        photos_paths = []  # TODO: salvar via storage
+        conn.execute(
+            """
+            INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
+        )
+        conn.commit()
+        st.success("Pedido criado e enviado para Status > Pedidos")
+```
+
+---
+
+## pages/03_Encomendas_Sob_Medida.py
+
+```python
+import streamlit as st
+from core.db import get_conn, now_iso, to_json
+from core.models import OrderStatus
+from core.validators import validate_prices
+from ui.components import section, photo_uploader
+
+st.title("Encomendas Sob Medida — Novo Pedido")
+conn = get_conn()
+clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()
+client_map = {f"{c['name']} (#{c['id']})": c['id'] for c in clients}
+
+with st.form("pedido_medida"):
+    client_sel = st.selectbox("Cliente", list(client_map.keys()))
+    category = st.text_input("Categoria")
+    type_ = st.text_input("Tipo")
+    product = st.text_input("Produto")
+    price_cost = st.number_input("Preço de custo", min_value=0.0, step=1.0)
+    price_sale = st.number_input("Preço de venda", min_value=0.0, step=1.0)
+    medidas = st.text_area("Medidas e detalhes (estruturado)")
+    obs_livre = st.text_area("Observações livres")
+    fotos = photo_uploader("Fotos (múltiplas)")
+    if st.form_submit_button("Concluir Pedido"):
+        validate_prices(price_cost, price_sale)
+        notes_struct = {"medidas": medidas}
+        photos_paths = []  # TODO: salvar via storage
+        conn.execute(
+            """
+            INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
+        )
+        conn.commit()
+        st.success("Pedido criado e enviado para Status > Pedidos")
+```
+
+---
+
+## pages/04_Status__Pedidos.py
+
+```python
+import streamlit as st
+from core.db import get_conn, now_iso
+from core.models import OrderStatus
+from ui.status_badges import badge
+
+st.title("Status • Pedidos")
+conn = get_conn()
+
+rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.CRIADO,)).fetchall()
+
+for r in rows:
+    with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
+        cols = st.columns([1,1,1])
+        with cols[0]:
+            st.write(f"Custo: R$ {r['price_cost']:.2f}")
+            st.write(f"Venda: R$ {r['price_sale']:.2f}")
+        with cols[1]:
+            badge(r['status'])
+        if st.button("Compartilhar p/ fornecedor", key=f"send_{r['id']}"):
+            conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
+            conn.commit()
+            st.success("Pedido enviado e movido para 'Aguardando Confecção'")
+```
+
+---
+
+## pages/05_Status__Aguardando_Confeccao.py
+
+```python
+import streamlit as st
+from core.db import get_conn, now_iso
+from core.models import OrderStatus
+
+st.title("Status • Aguardando Confecção")
+conn = get_conn()
+rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.AGUARDANDO_CONF,)).fetchall()
+
+for r in rows:
+    with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
+        c1, c2 = st.columns(2)
+        if c1.button("Chegou conforme", key=f"ok_{r['id']}"):
+            conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.EM_ESTOQUE, now_iso(), r['id']))
+            conn.commit()
+            st.success("Movido para 'Pedidos em Estoque'")
+        if c2.button("Chegou não conforme", key=f"nc_{r['id']}"):
+            conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.RECEBIDO_NC, now_iso(), r['id']))
+            conn.commit()
+            st.warning("Movido para 'Não Conformes'")
+```
+
+---
+
+## pages/06_Status__Pedidos_em_Estoque.py
+
+```python
+import streamlit as st
+from core.db import get_conn, now_iso
+from core.models import OrderStatus
+
+st.title("Status • Pedidos em Estoque")
+conn = get_conn()
+rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.EM_ESTOQUE,)).fetchall()
+
+for r in rows:
+    with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
+        st.write(f"Custo atual: R$ {r['price_cost']:.2f} — Venda atual: R$ {r['price_sale']:.2f}")
+        edit = st.checkbox("Alterar valores antes de concluir?", key=f"edit_{r['id']}")
+        new_cost, new_sale = r['price_cost'], r['price_sale']
+        if edit:
+            new_cost = st.number_input("Novo custo", value=float(r['price_cost']), key=f"ncost_{r['id']}")
+            new_sale = st.number_input("Nova venda", value=float(r['price_sale']), key=f"nsale_{r['id']}")
+        if st.button("Concluir Entrega", key=f"done_{r['id']}"):
+            if edit:
+                conn.execute("UPDATE orders SET price_cost=?, price_sale=?, updated_at=? WHERE id=?", (new_cost, new_sale, now_iso(), r['id']))
+            # cria lançamento financeiro
+            margin = (new_sale or 0.0) - (new_cost or 0.0)
+            conn.execute("INSERT INTO finance_entries(order_id, cost, sale, margin, settled, created_at) VALUES (?,?,?,?,0, datetime('now'))", (r['id'], new_cost, new_sale, margin))
+            conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.ENTREGUE, now_iso(), r['id']))
+            conn.commit()
+            st.success("Entrega concluída e lançamento financeiro criado")
+```
+
+---
+
+## pages/07_Status__Nao_Conformes.py
+
+```python
+import streamlit as st
+from core.db import get_conn, now_iso
+from core.models import OrderStatus
+
+st.title("Status • Não Conformes")
+conn = get_conn()
+rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.RECEBIDO_NC,)).fetchall()
+
+for r in rows:
+    with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
+        kind = st.selectbox("Tipo de NC", ["medida","tecido","cor","acabamento","outro"], key=f"kind_{r['id']}")
+        desc = st.text_area("Descrição", key=f"desc_{r['id']}")
+        if st.button("Informar e reenviar ao fornecedor", key=f"send_{r['id']}"):
+            conn.execute("INSERT INTO nonconformities(order_id, kind, description, photos, created_at) VALUES (?,?,?,?, datetime('now'))", (r['id'], kind, desc, "[]"))
+            conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
+            conn.commit()
+            st.success("NC registrada e pedido retornou para 'Aguardando Confecção'")
+```
+
+---
+
+## pages/08_Financeiro.py
+
+```python
+import streamlit as st
+from core.db import get_conn
+from services.payments import create_payment_batch
+from core.models import OrderStatus
+
+st.title("Financeiro")
+conn = get_conn()
+rows = conn.execute("SELECT f.*, o.id AS order_id, o.category, o.type, o.product, c.name AS client_name FROM finance_entries f JOIN orders o ON o.id=f.order_id JOIN clients c ON c.id=o.client_id WHERE f.settled=0 ORDER BY f.id DESC").fetchall()
+
+sel = []
+for r in rows:
+    with st.expander(f"Pedido #{r['order_id']} — {r['client_name']} | {r['category']}/{r['type']}/{r['product']}"):
+        st.write(f"Custo: R$ {r['cost']:.2f} | Venda: R$ {r['sale']:.2f} | Margem: R$ {r['margin']:.2f}")
+        if st.checkbox("Incluir no pagamento", key=f"pick_{r['id']}"):
+            sel.append(r['order_id'])
+
+if st.button("Pagar fornecedor (criar lote)") and sel:
+    batch_id = create_payment_batch(sel)
+    st.success(f"Lote #{batch_id} criado. Valores quitados.")
+```
+
+---
+
+## pages/09_Relatorios.py
+
+```python
+import streamlit as st
+from core.db import get_conn
+
+st.title("Relatórios")
+conn = get_conn()
+# Stubs simples de contagem
+criadas = conn.execute("SELECT COUNT(*) FROM orders").fetchone()[0]
+finalizadas = conn.execute("SELECT COUNT(*) FROM orders WHERE status='FINALIZADO_FIN'").fetchone()[0]
+
+st.write(f"Total de pedidos: {criadas}")
+st.write(f"Finalizados (financeiro): {finalizadas}")
+```
+
+---
+
+## README.md (trecho)
+
+````md
+# Estoque Exonvais (Esqueleto)
+
+## Rodar
+```bash
+pip install -r requirements.txt
+streamlit run app.py
+````
+
+## Fluxo (Mermaid — simplificado)
+
+```mermaid
+graph TD
+  A(CRIADO) --> B(AGUARDANDO_CONF)
+  B -->|Chegou conforme| C(EM_ESTOQUE)
+  B -->|Não conforme| D(RECEBIDO_NC)
+  D --> B
+  C -->|Concluir Entrega| E(ENTREGUE)
+  E --> F(FINALIZADO_FIN)
+```
+
+```
+
+---
+
+## Prompts curtos (Copilot) — por arquivo
+
+> Cole no topo do arquivo aberto no VS Code quando quiser que o Copilot complemente.
+
+**/core/storage.py**
+```
+
+Copilot, implemente save de múltiplas fotos: receber lista de UploadedFile, salvar redimensionadas (1200px), retornar lista de caminhos. Crie também um helper para marcar uma foto como principal.
+
+```
+
+**/pages/02_Produtos_Comuns.py**
+```
+
+Copilot, finalize o salvamento das fotos usando core.storage; inclua pré-visualização em miniaturas; valide campos obrigatórios; extraia o form para uma função reutilizável.
+
+```
+
+**/pages/03_Encomendas_Sob_Medida.py**
+```
+
+Copilot, replique a lógica de upload múltiplo + preview; adicione campos estruturados de medidas (largura, altura, profundidade) e grave no notes_struct.
+
+```
+
+**/pages/04_Status__Pedidos.py**
+```
+
+Copilot, adicione ações Editar/Excluir com auditoria (core.audit.log_change); crie exportação em PDF (services.exporter) e registre em shipments.
+
+```
+
+**/pages/05_Status__Aguardando_Confeccao.py**
+```
+
+Copilot, mostre fotos e observações no expander; adicione confirmação modal antes de mudar status; registre auditoria da transição.
+
+```
+```
+
+**/pages/06_Status__Pedidos_em_Estoque.py**
+
+```
+Copilot, se alterar preços, registre auditoria campo-a-campo; após concluir entrega, ofereça botão para abrir o pedido no Financeiro.
+```
+
+**/pages/07_Status__Nao_Conformes.py**
+
+```
+Copilot, permita anexar fotos de evidência; incremente contagem de reincidência por order_id; gere documento PDF de NC para envio.
+```
+
+**/pages/08_Financeiro.py**
+
+```
+Copilot, adicione tela de simulação (totais, margem, contagem) antes de criar lote; permitir filtrar por período.
+```
+
+**/pages/09_Relatorios.py**
+
+```
+Copilot, gere relatórios por período: pedidos por estado, margem por categoria, tempo médio de confecção e de retorno de NC.
+```
+

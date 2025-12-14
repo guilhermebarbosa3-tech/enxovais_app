@@ -3,8 +3,7 @@ from core.db import get_conn, now_iso, from_json, to_json
 from core.models import OrderStatus
 from core.audit import log_change
 from ui.status_badges import badge
-from services.exporter import export_order_pdf
-from services.messenger import generate_whatsapp_message, share_via_whatsapp
+from services.motores.pdf_generator import generate_order_pdf
 
 st.title("Status • Pedidos")
 conn = get_conn()
@@ -48,74 +47,79 @@ for r in rows:
         st.divider()
         
         # Ações
-        action_cols = st.columns([1,1,1,1])
+        action_cols = st.columns([1,1,1])
         
         with action_cols[0]:
             if st.button("✏️ Editar", key=f"edit_{r['id']}", use_container_width=True):
                 st.session_state[f"edit_mode_{r['id']}"] = True
         
         with action_cols[1]:
-            if st.button("📄 Exportar", key=f"export_{r['id']}", use_container_width=True):
-                pdf_path = export_order_pdf(r)
-                st.success(f"Exportado: {pdf_path}")
-                # Registrar em shipments
-                conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
-                    (r['id'], "EXPORT_PDF", now_iso(), pdf_path))
-                conn.commit()
-                log_change("order", r['id'], "EXPORT_PDF", "document_path", None, pdf_path)
-        
-        with action_cols[2]:
-            if st.button("🔄 Compartilhar p/ fornecedor", key=f"send_{r['id']}", use_container_width=True):
+            if st.button("🔄 Compartilhar", key=f"send_{r['id']}", use_container_width=True):
                 st.session_state[f"send_mode_{r['id']}"] = True
         
-        # Modo compartilhamento com confirmação
+        with action_cols[2]:
+            if st.button("🗑️ Excluir", key=f"del_{r['id']}", use_container_width=True):
+                st.session_state[f"delete_mode_{r['id']}"] = True
+        
+        # Modo compartilhamento
         if st.session_state.get(f"send_mode_{r['id']}", False):
-            st.info("📤 Preparando para compartilhar com fornecedor...")
+            st.info("📤 Gerando PDF do pedido com fotos...")
             
-            # 1. Exportar pedido
-            pdf_path = export_order_pdf(r)
-            # 2. Gerar mensagem WhatsApp
-            wa_msg = generate_whatsapp_message(r)
+            # 1. Gerar PDF com fotos
+            pdf_path = generate_order_pdf(r)
             
-            # Exibir resumo
-            st.success("✅ Pedido exportado e pronto para envio!")
-            st.info("**Resumo do pedido para compartilhar:**")
-            st.code(wa_msg)
+            # Exibir confirmação
+            st.success("✅ PDF gerado com sucesso!")
             
-            # Gerar link WhatsApp (sem número pré-preenchido, usuário preenche)
-            st.markdown("**Enviar via WhatsApp:**")
-            col_wa, col_copy = st.columns(2)
-            with col_wa:
-                st.markdown(f"[📱 Abrir WhatsApp Web](https://web.whatsapp.com/)", unsafe_allow_html=True)
-            with col_copy:
-                st.write("Cole a mensagem acima no WhatsApp")
+            # 2. Oferecer download direto
+            with open(pdf_path, 'rb') as pdf_file:
+                st.download_button(
+                    label="⬇️ Baixar PDF",
+                    data=pdf_file,
+                    file_name=f"pedido_{r['id']}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
             
             st.divider()
             
-            # Botões de confirmação
-            col_confirm, col_cancel = st.columns(2)
-            with col_confirm:
-                if st.button("✅ Confirmar envio ao fornecedor", key=f"confirm_send_{r['id']}", use_container_width=True):
-                    # 3. Atualizar status
+            # 3. Botão de compartilhamento nativo (mobile)
+            st.markdown("**Compartilhar para:**")
+            col_share, col_cancel = st.columns(2)
+            
+            with col_share:
+                if st.button("📤 Compartilhar (WhatsApp, Email, etc)", key=f"share_native_{r['id']}", use_container_width=True):
+                    # Usar Web Share API via JavaScript
+                    share_script = f"""
+                    <script>
+                    if (navigator.share) {{
+                        navigator.share({{
+                            title: 'Pedido #{r['id']}',
+                            text: 'Pedido do cliente {r['client_name']}',
+                            files: [new File([''], 'pedido_{r['id']}.pdf', {{ type: 'application/pdf' }})]
+                        }}).catch(err => console.log('Erro ao compartilhar:', err));
+                    }} else {{
+                        alert('Seu navegador não suporta compartilhamento. Use o botão de baixar.');
+                    }}
+                    </script>
+                    """
+                    st.components.v1.html(share_script, height=0)
+                    
+                    # Atualizar status após compartilhar
                     conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
-                    # 4. Registrar em shipments
                     conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
-                        (r['id'], "WHATSAPP", now_iso(), pdf_path))
+                        (r['id'], "COMPARTILHADO", now_iso(), pdf_path))
                     conn.commit()
                     log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
                     
                     st.session_state[f"send_mode_{r['id']}"] = False
-                    st.success("✅ Pedido movido para 'Aguardando Confecção'")
+                    st.success("✅ Pedido compartilhado e movido para 'Aguardando Confecção'")
                     st.rerun()
             
             with col_cancel:
-                if st.button("❌ Cancelar", key=f"cancel_send_{r['id']}", use_container_width=True):
+                if st.button("❌ Cancelar", key=f"cancel_share_{r['id']}", use_container_width=True):
                     st.session_state[f"send_mode_{r['id']}"] = False
                     st.rerun()
-        
-        with action_cols[3]:
-            if st.button("🗑️ Excluir", key=f"del_{r['id']}", use_container_width=True):
-                st.session_state[f"delete_mode_{r['id']}"] = True
         
         # Modo exclusão com confirmação
         if st.session_state.get(f"delete_mode_{r['id']}", False):
