@@ -61,8 +61,8 @@ with st.form("pedido_comum"):
     produtos_disponiveis = hierarchy.get(category, {}).get(type_, []) if category and type_ else []
     product = st.selectbox("Produto", produtos_disponiveis if produtos_disponiveis else ["Nenhum produto cadastrado"])
     
-    price_cost = st.number_input("Preço de custo", min_value=0.0, step=1.0)
-    price_sale = st.number_input("Preço de venda", min_value=0.0, step=1.0)
+    price_cost = st.number_input("Preço de custo", value=None, min_value=0.0, step=1.0)
+    price_sale = st.number_input("Preço de venda", value=None, min_value=0.0, step=1.0)
     
     # Opções independentes
     tecido = st.selectbox("Tecido", tecidos if tecidos else ["Configure em Configurações"])
