@@ -15,11 +15,18 @@ def format_br_date(date_obj):
 
 # Filtro por período
 st.subheader("Filtros")
-col1, col2 = st.columns(2)
+col1, col2, col3 = st.columns(3)
 with col1:
     start_date = st.date_input("Data inicial", value=datetime.now() - timedelta(days=30), format="DD/MM/YYYY")
 with col2:
     end_date = st.date_input("Data final", value=datetime.now(), format="DD/MM/YYYY")
+with col3:
+    status_filter = st.radio(
+        "Status",
+        options=["📋 Todos", "⏳ Pendentes", "✅ Pagos"],
+        horizontal=True,
+        index=0
+    )
 
 # Converter para ISO format para comparação
 start_iso = start_date.isoformat()
@@ -60,6 +67,15 @@ else:
             '_settled': r['settled'],
             '_batch_id': r['batch_id']
         })
+    
+    # ============================================================================
+    # APLICAR FILTRO DE STATUS
+    # ============================================================================
+    if status_filter == "⏳ Pendentes":
+        data = [r for r in data if r['_settled'] == 0]
+    elif status_filter == "✅ Pagos":
+        data = [r for r in data if r['_settled'] == 1]
+    # Se "📋 Todos", mantém todos
     
     # ============================================================================
     # RESUMO DO PERÍODO (O que você pediu: Pedidos, Pagamentos, Lucro)
