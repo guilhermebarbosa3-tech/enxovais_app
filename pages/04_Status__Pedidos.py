@@ -96,11 +96,23 @@ for r in rows:
         
         with action_cols[3]:
             if st.button("🗑️ Excluir", key=f"del_{r['id']}", use_container_width=True):
-                if st.checkbox("Confirmar exclusão?", key=f"confirm_del_{r['id']}"):
+                st.session_state[f"delete_mode_{r['id']}"] = True
+        
+        # Modo exclusão com confirmação
+        if st.session_state.get(f"delete_mode_{r['id']}", False):
+            st.warning("⚠️ Você tem certeza que deseja excluir este pedido? Esta ação é irreversível!")
+            col_confirm, col_cancel = st.columns(2)
+            with col_confirm:
+                if st.button("✅ Sim, excluir", key=f"confirm_del_{r['id']}", use_container_width=True):
                     log_change("order", r['id'], "DELETE", "all", str(r), None)
                     conn.execute("DELETE FROM orders WHERE id=?", (r['id'],))
                     conn.commit()
-                    st.warning("Pedido excluído")
+                    st.success("Pedido excluído com sucesso")
+                    st.session_state[f"delete_mode_{r['id']}"] = False
+                    st.rerun()
+            with col_cancel:
+                if st.button("❌ Cancelar", key=f"cancel_del_{r['id']}", use_container_width=True):
+                    st.session_state[f"delete_mode_{r['id']}"] = False
                     st.rerun()
         
         # Modo edição
