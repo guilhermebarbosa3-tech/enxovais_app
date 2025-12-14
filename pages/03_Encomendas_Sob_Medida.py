@@ -21,8 +21,35 @@ def load_config(key: str, default):
         conn.commit()
         return default
 
-clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()
-client_map = {f"{c['name']} (#{c['id']})": c['id'] for c in clients}
+# Buscar últimos 5 clientes usados (recentes)
+recentes = conn.execute(
+    "SELECT DISTINCT client_id FROM orders ORDER BY created_at DESC LIMIT 5"
+).fetchall()
+recentes_ids = {r['client_id'] for r in recentes}
+
+# Todos os clientes
+all_clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()
+
+# Montar lista com recentes no topo
+client_list = []
+client_map = {}
+
+# Recentes primeiro
+for c in all_clients:
+    if c['id'] in recentes_ids:
+        label = f"🌟 {c['name']} (#{c['id']})"
+        client_list.append(label)
+        client_map[label] = c['id']
+
+# Depois os outros em ordem alfabética
+if client_list:
+    client_list.append("─" * 40)  # Divisor visual
+
+for c in all_clients:
+    if c['id'] not in recentes_ids:
+        label = f"{c['name']} (#{c['id']})"
+        client_list.append(label)
+        client_map[label] = c['id']
 
 # Carrega configurações
 hierarchy = load_config("product_hierarchy", {
@@ -41,7 +68,7 @@ tecidos = load_config("tecidos", ["Algodão", "Percal", "Cetim", "Microfibra", "
 cores = load_config("cores", ["Branco", "Bege", "Azul", "Rosa", "Cinza", "Colorido"])
 acabamentos = load_config("acabamentos", ["Bordado", "Renda", "Babado", "Liso", "Estampado"])
 
-if not clients:
+if not client_list:
     st.warning("⚠️ Cadastre um cliente primeiro na página 'Clientes'.")
     st.stop()
 
@@ -50,7 +77,7 @@ if not hierarchy:
     st.stop()
 
 with st.form("pedido_medida"):
-    client_sel = st.selectbox("Cliente", list(client_map.keys()))
+    client_sel = st.selectbox("Cliente", client_list)
     
     # Hierarquia em cascata
     category = st.selectbox("Categoria", list(hierarchy.keys()) if hierarchy else [])
