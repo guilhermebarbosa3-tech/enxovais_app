@@ -25,6 +25,7 @@ def export_order_pdf(order_row) -> str:
 
 Data: {order_row['created_at']}
 Status: {order_row['status']}
+Cliente: {order_row['client_name']}
 
 ─────────────────────────────────────────────────────────────
 PRODUTO
