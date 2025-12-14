@@ -61,8 +61,8 @@ for r in rows:
             if st.button("🗑️ Excluir", key=f"del_{r['id']}", use_container_width=True):
                 st.session_state[f"delete_mode_{r['id']}"] = True
         
-        # Modo compartilhamento
-        if st.session_state.get(f"send_mode_{r['id']}", False):
+        # Modo compartilhamento - PASSO 1: Mostrar PDF
+        if st.session_state.get(f"send_mode_{r['id']}", False) and not st.session_state.get(f"confirm_share_{r['id']}", False):
             # Gerar PDF com fotos
             pdf_path = generate_order_pdf(r)
             st.toast("✅ PDF gerado com sucesso!", icon="📄")
@@ -77,13 +77,30 @@ for r in rows:
                     use_container_width=True
                 )
             
-            # Confirmação antes de compartilhar
+            # Botão para confirmar
+            col_confirm, col_cancel = st.columns(2)
+            
+            with col_confirm:
+                if st.button("✅ Próximo", key=f"next_share_{r['id']}", use_container_width=True):
+                    st.session_state[f"confirm_share_{r['id']}"] = True
+                    st.rerun()
+            
+            with col_cancel:
+                if st.button("❌ Cancelar", key=f"cancel_share_1_{r['id']}", use_container_width=True):
+                    st.session_state[f"send_mode_{r['id']}"] = False
+                    st.rerun()
+        
+        # Modo compartilhamento - PASSO 2: Confirmar envio
+        elif st.session_state.get(f"confirm_share_{r['id']}", False):
             st.info("📢 Ao compartilhar, o pedido será movido para **'Aguardando Confecção'**")
             
             col_share, col_cancel = st.columns(2)
             
             with col_share:
                 if st.button("📤 Confirmar Compartilhamento", key=f"share_native_{r['id']}", use_container_width=True):
+                    # Buscar PDF novamente para compartilhar
+                    pdf_path = generate_order_pdf(r)
+                    
                     # Usar Web Share API via JavaScript
                     share_script = f"""
                     <script>
@@ -108,12 +125,13 @@ for r in rows:
                     log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
                     
                     st.session_state[f"send_mode_{r['id']}"] = False
+                    st.session_state[f"confirm_share_{r['id']}"] = False
                     st.success("✅ Pedido compartilhado e movido para 'Aguardando Confecção'")
                     st.rerun()
             
             with col_cancel:
-                if st.button("❌ Cancelar", key=f"cancel_share_{r['id']}", use_container_width=True):
-                    st.session_state[f"send_mode_{r['id']}"] = False
+                if st.button("❌ Voltar", key=f"cancel_share_{r['id']}", use_container_width=True):
+                    st.session_state[f"confirm_share_{r['id']}"] = False
                     st.rerun()
         
         # Modo exclusão com confirmação
