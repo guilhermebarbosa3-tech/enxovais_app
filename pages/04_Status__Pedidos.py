@@ -4,6 +4,7 @@ from core.models import OrderStatus
 from core.audit import log_change
 from ui.status_badges import badge
 from services.exporter import export_order_pdf
+from services.messenger import generate_whatsapp_message, share_via_whatsapp
 
 st.title("Status • Pedidos")
 conn = get_conn()
@@ -65,10 +66,33 @@ for r in rows:
         
         with action_cols[2]:
             if st.button("🔄 Compartilhar p/ fornecedor", key=f"send_{r['id']}", use_container_width=True):
+                # 1. Exportar pedido
+                pdf_path = export_order_pdf(r)
+                # 2. Gerar mensagem WhatsApp
+                wa_msg = generate_whatsapp_message(r)
+                # 3. Atualizar status
                 conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
+                # 4. Registrar em shipments
+                conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
+                    (r['id'], "WHATSAPP", now_iso(), pdf_path))
                 conn.commit()
                 log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
-                st.success("Pedido enviado e movido para 'Aguardando Confecção'")
+                
+                # Exibir opções
+                st.success("Pedido exportado e pronto para envio!")
+                st.info("**Resumo do pedido para compartilhar:**")
+                st.code(wa_msg)
+                
+                # Gerar link WhatsApp (sem número pré-preenchido, usuário preenche)
+                st.markdown("**Enviar via WhatsApp:**")
+                col_wa, col_copy = st.columns(2)
+                with col_wa:
+                    st.markdown(f"[📱 Abrir WhatsApp Web](https://web.whatsapp.com/)", unsafe_allow_html=True)
+                with col_copy:
+                    st.write("Cole a mensagem acima no WhatsApp")
+                
+                st.divider()
+                st.markdown("✅ Pedido movido para 'Aguardando Confecção'")
         
         with action_cols[3]:
             if st.button("🗑️ Excluir", key=f"del_{r['id']}", use_container_width=True):
