@@ -8,11 +8,20 @@ from ui.components import section, photo_uploader
 st.title("Produtos Comuns — Novo Pedido")
 conn = get_conn()
 
-# Buscar últimos 5 clientes usados (recentes)
-recentes = conn.execute(
+# Buscar últimos 5 clientes usados (com pedidos recentes) OU recém cadastrados
+recentes_pedidos = conn.execute(
     "SELECT DISTINCT client_id FROM orders ORDER BY created_at DESC LIMIT 5"
 ).fetchall()
-recentes_ids = {r['client_id'] for r in recentes}
+recentes_cadastrados = conn.execute(
+    "SELECT id as client_id FROM clients ORDER BY id DESC LIMIT 5"
+).fetchall()
+
+# Unir e remover duplicatas, mantendo ordem (recentes pedidos + recentes cadastrados)
+recentes_ids = set()
+for r in recentes_pedidos:
+    recentes_ids.add(r['client_id'])
+for r in recentes_cadastrados:
+    recentes_ids.add(r['client_id'])
 
 # Todos os clientes
 all_clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()
