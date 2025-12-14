@@ -111,8 +111,8 @@ for r in rows:
                     
                     # Registrar auditoria
                     conn.execute(
-                        "INSERT INTO audit_log(entity_type, entity_id, field_name, old_value, new_value, changed_at) VALUES (?,?,?,?,?, datetime('now'))",
-                        ('orders', r['id'], 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF)
+                        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?, datetime('now'))",
+                        ('orders', r['id'], 'status_changed', 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF, 'system')
                     )
                     
                     conn.commit()
