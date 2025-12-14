@@ -1,5 +1,4 @@
 import streamlit as st
-import time
 from core.db import get_conn, now_iso, to_json, from_json
 from core.models import OrderStatus
 from core.validators import validate_prices
@@ -77,6 +76,11 @@ if not hierarchy:
     st.warning("⚠️ Configure a hierarquia de produtos em 'Configurações' primeiro.")
     st.stop()
 
+# Limpar form se pedido foi criado
+if st.session_state.get('pedido_criado'):
+    st.session_state['pedido_criado'] = False
+    st.rerun()
+
 with st.form("pedido_comum"):
     client_sel = st.selectbox("Cliente", client_list)
     
@@ -142,6 +146,5 @@ if button_clicked:
         (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
     )
     conn.commit()
-    st.toast("✅ Pedido criado e enviado para Status > Pedidos", icon="🎉")
-    time.sleep(1.0)  # Aguarda 1 segundo para o toast aparecer
-    st.rerun()
+    st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
+    st.session_state['pedido_criado'] = True
