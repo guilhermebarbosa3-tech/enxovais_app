@@ -168,12 +168,6 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
                         original_elements.append(Spacer(1, 0.1*inch))
                 except Exception as e:
                     story.append(Paragraph(f"❌ Erro ao carregar foto original {idx + 1}: {e}", styles['Normal']))
-                    
-                    original_elements.append(Image(temp_path, width=2*inch, height=2*inch))
-                    if (idx + 1) % 2 == 0:
-                        original_elements.append(Spacer(1, 0.1*inch))
-                except Exception as e:
-                    story.append(Paragraph(f"❌ Erro ao carregar foto original {idx + 1}: {e}", styles['Normal']))
         
         if original_elements:
             original_table = Table([original_elements[i:i+2] for i in range(0, len(original_elements), 2)])
