@@ -244,6 +244,10 @@ else:
         col_confirm1, col_confirm2 = st.columns(2)
         with col_confirm1:
             if st.button("✅ Confirmar e Criar Lote", key="confirm_batch", use_container_width=True):
+                # Obter IDs dos pedidos selecionados
+                selected_indices = selected_rows.index
+                order_ids = df.loc[selected_indices, '_order_id'].tolist() if '_order_id' in df.columns else []
+                
                 if order_ids:
                     batch_id = create_payment_batch(order_ids)
                     st.success(
