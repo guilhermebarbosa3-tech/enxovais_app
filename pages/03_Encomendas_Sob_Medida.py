@@ -2,6 +2,7 @@ import streamlit as st
 from core.db import get_conn, now_iso, to_json, from_json
 from core.models import OrderStatus
 from core.validators import validate_prices
+from core.storage import save_and_resize
 from ui.components import section, photo_uploader
 
 st.title("Encomendas Sob Medida — Novo Pedido")
@@ -113,7 +114,15 @@ if button_clicked:
         "cor": cor,
         "acabamento": acabamento
     }
-    photos_paths = []  # TODO: salvar via storage
+    
+    # Salvar fotos se existirem
+    photos_paths = []
+    if fotos:
+        for idx, foto in enumerate(fotos):
+            filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
+            path = save_and_resize(foto, filename_base)
+            photos_paths.append(path)
+    
     conn.execute(
         """
         INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
