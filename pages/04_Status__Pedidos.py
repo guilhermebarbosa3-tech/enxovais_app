@@ -65,24 +65,28 @@ for r in rows:
         
         # Modo compartilhamento
         if st.session_state.get(f"send_mode_{r['id']}", False):
-            # Gerar PDF com fotos
-            pdf_path = generate_order_pdf(r)
-            st.toast("✅ PDF gerado com sucesso!", icon="📄")
+            st.divider()
+            st.subheader("📤 Opções de Compartilhamento")
             
-            # Oferecer download direto
-            with open(pdf_path, 'rb') as pdf_file:
-                st.download_button(
-                    label="⬇️ Baixar PDF",
-                    data=pdf_file,
-                    file_name=f"pedido_{r['id']}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-            
-            # Confirmação antes de compartilhar
-            st.info("📢 Ao compartilhar, o pedido será movido para **'Aguardando Confecção'**")
-            
-            col1, col2, col3 = st.columns(3)
+            try:
+                # Gerar PDF com fotos
+                pdf_path = generate_order_pdf(r)
+                st.toast("✅ PDF gerado com sucesso!", icon="📄")
+                
+                # Oferecer download direto
+                with open(pdf_path, 'rb') as pdf_file:
+                    st.download_button(
+                        label="⬇️ Baixar PDF",
+                        data=pdf_file,
+                        file_name=f"pedido_{r['id']}.pdf",
+                        mime="application/pdf",
+                        use_container_width=True
+                    )
+                
+                # Confirmação antes de compartilhar
+                st.info("📢 Ao compartilhar, o pedido será movido para **'Aguardando Confecção'**")
+                
+                col1, col2, col3 = st.columns(3)
             
             with col1:
                 if st.button("💬 WhatsApp", key=f"whatsapp_{r['id']}", use_container_width=True):
@@ -133,6 +137,12 @@ for r in rows:
             
             with col3:
                 if st.button("❌ Cancelar", key=f"cancel_share_{r['id']}", use_container_width=True):
+                    st.session_state[f"send_mode_{r['id']}"] = False
+                    st.rerun()
+            
+            except Exception as e:
+                st.error(f"❌ Erro ao gerar PDF: {str(e)}")
+                if st.button("❌ Fechar", key=f"close_error_{r['id']}", use_container_width=True):
                     st.session_state[f"send_mode_{r['id']}"] = False
                     st.rerun()
         
