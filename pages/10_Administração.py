@@ -44,11 +44,15 @@ def find_orphaned_uploads():
     if UPLOADS_DIR.exists():
         for photo_file in UPLOADS_DIR.rglob("*.jpg"):
             # Verificar se foto existe em algum pedido
+            filename = photo_file.name
+            # Buscar em todas as linhas da coluna photos
             result = conn.execute(
                 "SELECT COUNT(*) as count FROM orders WHERE photos LIKE ?",
-                (f"%{photo_file.name}%",)
+                (f"%{filename}%",)
             ).fetchone()
-            if result['count'] == 0:
+            
+            # Só marcar como órfã se realmente não encontrou em nenhum pedido
+            if result and result['count'] == 0:
                 orphaned.append(photo_file)
     return orphaned
 
@@ -145,18 +149,26 @@ with tab2:
                 st.success("✅ Nenhum PDF antigo encontrado!")
     
     if st.button("🗑️ Deletar PDFs antigos", key="delete_pdfs"):
-        if EXPORTS_DIR.exists():
-            deleted_count = 0
-            for pdf_file in EXPORTS_DIR.glob("*.pdf"):
-                try:
-                    os.remove(pdf_file)
-                    deleted_count += 1
-                except Exception as e:
-                    st.error(f"Erro ao deletar {pdf_file.name}: {e}")
-            
-            log_change("system", "cleanup", "PDFs_DELETED", "count", 0, deleted_count)
-            st.success(f"✅ {deleted_count} PDFs deletados com sucesso!")
-            st.rerun()
+        st.warning("⚠️ OPERAÇÃO IRREVERSÍVEL")
+        st.error("Digite 'DELETAR PDFS' para confirmar:")
+        
+        confirm = st.text_input("Confirmação:", key="confirm_pdfs")
+        
+        if confirm == "DELETAR PDFS":
+            if EXPORTS_DIR.exists():
+                deleted_count = 0
+                for pdf_file in EXPORTS_DIR.glob("*.pdf"):
+                    try:
+                        os.remove(pdf_file)
+                        deleted_count += 1
+                    except Exception as e:
+                        st.error(f"Erro ao deletar {pdf_file.name}: {e}")
+                
+                log_change("system", "cleanup", "PDFs_DELETED", "count", 0, deleted_count)
+                st.success(f"✅ {deleted_count} PDFs deletados com sucesso!")
+                st.rerun()
+        elif confirm:
+            st.error("❌ Confirmação incorreta! Digite 'DELETAR PDFS'")
     
     st.divider()
     
@@ -179,19 +191,31 @@ with tab2:
             st.success("✅ Nenhuma foto órfã encontrada!")
     
     if st.button("🗑️ Deletar fotos órfãs", key="delete_orphaned"):
-        orphaned = find_orphaned_uploads()
-        deleted_count = 0
+        # Confirmação MUITO FORTE
+        st.warning("⚠️⚠️⚠️ OPERAÇÃO IRREVERSÍVEL ⚠️⚠️⚠️")
+        st.error("Você está prestes a deletar fotos! Digite 'DELETAR FOTOS' para confirmar:")
         
-        for photo in orphaned:
-            try:
-                os.remove(photo)
-                deleted_count += 1
-            except Exception as e:
-                st.error(f"Erro ao deletar {photo.name}: {e}")
+        confirm = st.text_input("Confirmação (deixe vazio e clique novamente para cancelar):", key="confirm_orphaned")
         
-        log_change("system", "cleanup", "ORPHANED_PHOTOS_DELETED", "count", 0, deleted_count)
-        st.success(f"✅ {deleted_count} fotos órfãs deletadas!")
-        st.rerun()
+        if confirm == "DELETAR FOTOS":
+            orphaned = find_orphaned_uploads()
+            deleted_count = 0
+            
+            st.info(f"Deletando {len(orphaned)} fotos órfãs...")
+            
+            for photo in orphaned:
+                try:
+                    os.remove(photo)
+                    deleted_count += 1
+                    st.text(f"✅ Deletado: {photo.name}")
+                except Exception as e:
+                    st.error(f"❌ Erro ao deletar {photo.name}: {e}")
+            
+            log_change("system", "cleanup", "ORPHANED_PHOTOS_DELETED", "count", 0, deleted_count)
+            st.success(f"✅ {deleted_count} fotos órfãs deletadas!")
+            st.rerun()
+        elif confirm:
+            st.error("❌ Confirmação incorreta! Digite 'DELETAR FOTOS'")
     
     st.divider()
     
