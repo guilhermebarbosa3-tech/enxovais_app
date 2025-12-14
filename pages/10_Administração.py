@@ -55,7 +55,7 @@ def find_orphaned_uploads():
 def get_audit_log(limit=20):
     """Busca últimas mudanças do sistema."""
     return conn.execute(
-        "SELECT * FROM audit_log ORDER BY timestamp DESC LIMIT ?",
+        "SELECT * FROM audit_log ORDER BY ts DESC LIMIT ?",
         (limit,)
     ).fetchall()
 
@@ -237,13 +237,13 @@ with tab3:
             col1, col2, col3 = st.columns([2, 2, 4])
             
             with col1:
-                st.caption(log['timestamp'])
+                st.caption(log['ts'])
             
             with col2:
-                st.caption(f"**{log['entity_type']}** #{log['entity_id']}")
+                st.caption(f"**{log['entity']}** #{log['entity_id']}")
             
             with col3:
-                st.caption(f"{log['action']}: {log['field']} ({log['old_value']} → {log['new_value']})")
+                st.caption(f"{log['action']}: {log['field']} ({log['before']} → {log['after']})")
         
         st.divider()
         st.info(f"Total de {len(audit_logs)} registros mostrados")
