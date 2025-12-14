@@ -16,9 +16,9 @@ def format_br_date(date_obj):
 st.subheader("Filtros")
 col1, col2 = st.columns(2)
 with col1:
-    start_date = st.date_input("Data inicial", value=datetime.now() - timedelta(days=30))
+    start_date = st.date_input("Data inicial", value=datetime.now() - timedelta(days=30), format="DD/MM/YYYY")
 with col2:
-    end_date = st.date_input("Data final", value=datetime.now())
+    end_date = st.date_input("Data final", value=datetime.now(), format="DD/MM/YYYY")
 
 # Converter para ISO format para comparação
 start_iso = start_date.isoformat()
