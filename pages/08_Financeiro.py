@@ -61,15 +61,84 @@ else:
             '_batch_id': r['batch_id']
         })
     
+    # ============================================================================
+    # RESUMO DO PERÍODO (O que você pediu: Pedidos, Pagamentos, Lucro)
+    # ============================================================================
+    st.subheader("📋 Resumo do Período")
+    
+    # Calcular totais gerais
+    total_pedidos = len(rows)
+    total_custo_geral = sum(r['_cost'] for r in data)
+    total_venda_geral = sum(r['_sale'] for r in data)
+    total_lucro_geral = total_venda_geral - total_custo_geral
+    
+    # Pedidos pagos vs pendentes
+    pedidos_pagos = len([r for r in data if r['_settled'] == 1])
+    pedidos_pendentes = len([r for r in data if r['_settled'] == 0])
+    
+    # Valores pagos vs pendentes
+    valor_custo_pago = sum(r['_cost'] for r in data if r['_settled'] == 1)
+    valor_custo_pendente = sum(r['_cost'] for r in data if r['_settled'] == 0)
+    valor_venda_pago = sum(r['_sale'] for r in data if r['_settled'] == 1)
+    valor_venda_pendente = sum(r['_sale'] for r in data if r['_settled'] == 0)
+    lucro_pago = valor_venda_pago - valor_custo_pago
+    lucro_pendente = valor_venda_pendente - valor_custo_pendente
+    
+    # Exibir resumo em cards visuais
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        st.metric("📦 Total de Pedidos", total_pedidos, f"✅ {pedidos_pagos} | ⏳ {pedidos_pendentes}")
+    with col2:
+        st.metric("💰 Custo Total (Fornecedor)", f"R$ {total_custo_geral:.2f}", f"Pago: R$ {valor_custo_pago:.2f}")
+    with col3:
+        st.metric("💵 Venda Total (Clientes)", f"R$ {total_venda_geral:.2f}", f"Pago: R$ {valor_venda_pago:.2f}")
+    with col4:
+        st.metric("📊 SEU LUCRO LÍQUIDO", f"R$ {total_lucro_geral:.2f}", delta=f"Pago: R$ {lucro_pago:.2f}")
+    
+    # Detalhamento de pagamentos vs pendências
+    st.subheader("🎯 Detalhamento de Pagamentos")
+    col_detalhe1, col_detalhe2 = st.columns(2)
+    with col_detalhe1:
+        st.write("**Pedidos Pagos** ✅")
+        st.write(f"- Quantidade: **{pedidos_pagos}** pedidos")
+        st.write(f"- Custo ao Fornecedor: **R$ {valor_custo_pago:.2f}**")
+        st.write(f"- Venda ao Cliente: **R$ {valor_venda_pago:.2f}**")
+        st.write(f"- Seu Lucro: **R$ {lucro_pago:.2f}**")
+    
+    with col_detalhe2:
+        st.write("**Pedidos Pendentes** ⏳")
+        st.write(f"- Quantidade: **{pedidos_pendentes}** pedidos")
+        st.write(f"- Custo ao Fornecedor: **R$ {valor_custo_pendente:.2f}**")
+        st.write(f"- Venda ao Cliente: **R$ {valor_venda_pendente:.2f}**")
+        st.write(f"- Seu Lucro: **R$ {lucro_pendente:.2f}**")
+    
+    st.divider()
+    
     df = pd.DataFrame(data)
     
     # Estado para controlar seleções
     if 'table_state' not in st.session_state:
         st.session_state['table_state'] = df.copy()
     
-    st.subheader(f"📊 Entradas ({len(df)} total)")
+    st.subheader(f"� Lista Completa de Pedidos ({len(df)} total)")
     
-    # Exibir tabela com checkboxes
+    # Helper: mostrar legenda
+    with st.expander("ℹ️ Como ler a tabela"):
+        col_leg1, col_leg2, col_leg3 = st.columns(3)
+        with col_leg1:
+            st.write("**Status:**")
+            st.write("- ✅ PAGO: Fornecedor já recebeu")
+            st.write("- ⏳ Pendente: Aguardando pagamento ao fornecedor")
+        with col_leg2:
+            st.write("**Valores:**")
+            st.write("- **Custo**: Você paga ao fornecedor")
+            st.write("- **Venda**: Você recebe do cliente")
+        with col_leg3:
+            st.write("**Margem:**")
+            st.write("- **Margem**: Seu lucro (Venda - Custo)")
+            st.write("- Selecione linhas para agrupar pagamento")
+    
+    st.write("")
     # Apenas permite selecionar os pendentes (settled=0)
     edited_df = st.data_editor(
         df,
