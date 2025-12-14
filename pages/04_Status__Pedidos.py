@@ -86,34 +86,13 @@ for r in rows:
             st.divider()
             
             # Informação e botões de ação
-            st.info("📢 Deseja compartilhar e enviar para confecção?")
+            st.info("📢 Enviar para confecção?")
             
-            col_share, col_cancel = st.columns(2)
+            col_confeccionar, col_cancel = st.columns(2)
             
-            with col_share:
-                if st.button("📱 Compartilhar PDF", key=f"share_native_{r['id']}", use_container_width=True):
-                    # Usar Web Share API via JavaScript para compartilhar PDF
-                    share_script = f"""
-                    <script>
-                    if (navigator.share) {{
-                        fetch('{pdf_path}')
-                        .then(res => res.blob())
-                        .then(blob => {{
-                            const file = new File([blob], 'pedido_{r['id']}.pdf', {{ type: 'application/pdf' }});
-                            navigator.share({{
-                                title: 'Pedido #{r['id']}',
-                                text: 'Pedido do cliente {r['client_name']}',
-                                files: [file]
-                            }}).catch(err => console.log('Erro ao compartilhar:', err));
-                        }});
-                    }} else {{
-                        alert('Seu navegador não suporta compartilhamento. Use o botão Baixar PDF.');
-                    }}
-                    </script>
-                    """
-                    st.components.v1.html(share_script, height=0)
-                    
-                    # Atualizar status após compartilhar
+            with col_confeccionar:
+                if st.button("🔄 Confeccionar", key=f"confeccionar_{r['id']}", use_container_width=True):
+                    # Atualizar status após confeccionar
                     conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
                     conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
                         (r['id'], "COMPARTILHADO", now_iso(), pdf_path))
@@ -124,7 +103,7 @@ for r in rows:
                     st.session_state[f"send_mode_{r['id']}"] = False
                     if f"pdf_path_{r['id']}" in st.session_state:
                         del st.session_state[f"pdf_path_{r['id']}"]
-                    st.success("✅ Pedido compartilhado e movido para 'Aguardando Confecção'")
+                    st.success("✅ Pedido enviado para confecção!")
                     st.rerun()
             
             with col_cancel:
