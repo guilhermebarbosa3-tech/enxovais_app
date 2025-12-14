@@ -65,9 +65,13 @@ for r in rows:
         
         # Modo compartilhamento
         if st.session_state.get(f"send_mode_{r['id']}", False):
-            # Gerar PDF com fotos automaticamente
-            pdf_path = generate_order_pdf(r)
-            st.success("✅ PDF gerado com sucesso!")
+            # Gerar PDF com fotos automaticamente (só uma vez)
+            if f"pdf_path_{r['id']}" not in st.session_state:
+                pdf_path = generate_order_pdf(r)
+                st.session_state[f"pdf_path_{r['id']}"] = pdf_path
+                st.success("✅ PDF gerado com sucesso!")
+            else:
+                pdf_path = st.session_state[f"pdf_path_{r['id']}"]
             
             # Botão de download (não muda status)
             with open(pdf_path, 'rb') as pdf_file:
@@ -116,13 +120,19 @@ for r in rows:
                     conn.commit()
                     log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
                     
+                    # Limpar session_state
                     st.session_state[f"send_mode_{r['id']}"] = False
+                    if f"pdf_path_{r['id']}" in st.session_state:
+                        del st.session_state[f"pdf_path_{r['id']}"]
                     st.success("✅ Pedido compartilhado e movido para 'Aguardando Confecção'")
                     st.rerun()
             
             with col_cancel:
                 if st.button("❌ Cancelar", key=f"cancel_share_{r['id']}", use_container_width=True):
+                    # Limpar session_state
                     st.session_state[f"send_mode_{r['id']}"] = False
+                    if f"pdf_path_{r['id']}" in st.session_state:
+                        del st.session_state[f"pdf_path_{r['id']}"]
                     st.rerun()
         
         # Modo exclusão com confirmação
