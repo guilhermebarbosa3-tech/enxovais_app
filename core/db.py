@@ -4,15 +4,17 @@ from typing import Any, Dict
 # Detectar se estamos em produção (PostgreSQL) ou desenvolvimento (SQLite)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
+# Importações condicionais
 if DATABASE_URL:
     try:
-        # PostgreSQL para produção
-        import psycopg
-        from psycopg.rows import dict_row
+        import psycopg  # type: ignore
+        from psycopg.rows import dict_row  # type: ignore
+        HAS_PSYCOPG = True
     except ImportError:
+        HAS_PSYCOPG = False
         raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
 else:
-    # SQLite para desenvolvimento local
+    HAS_PSYCOPG = False
     import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "exonvais.db")
@@ -114,7 +116,7 @@ _conn = None
 def get_conn():
     global _conn
     if _conn is None:
-        if DATABASE_URL:
+        if HAS_PSYCOPG:
             # PostgreSQL
             _conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
         else:
@@ -126,7 +128,7 @@ def get_conn():
 
 def init_db():
     conn = get_conn()
-    if DATABASE_URL:
+    if HAS_PSYCOPG:
         # PostgreSQL
         conn.execute(SCHEMA_SQL)
         conn.commit()
@@ -156,7 +158,7 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
     before_json = to_json(before) if before is not None else None
     after_json = to_json(after) if after is not None else None
     conn.execute(
-        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if DATABASE_URL else
+        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if HAS_PSYCOPG else
         "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
         (entity, entity_id, action, field, before_json, after_json, user, now_iso())
     )
@@ -166,7 +168,7 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
 def load_config(key: str, default: Any):
     """Carrega configuração do banco (centralizado)"""
     conn = get_conn()
-    if DATABASE_URL:
+    if HAS_PSYCOPG:
         # PostgreSQL
         conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
         cur = conn.execute("SELECT value FROM config WHERE key=%s", (key,))
@@ -176,7 +178,7 @@ def load_config(key: str, default: Any):
         cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))
     row = cur.fetchone()
     if row:
-        return from_json(row['value'] if DATABASE_URL else row[0], default)
+        return from_json(row['value'] if HAS_PSYCOPG else row[0], default)
     else:
         # Se não existe, salva o padrão
         save_config(key, default)
@@ -186,7 +188,7 @@ def load_config(key: str, default: Any):
 def save_config(key: str, value: Any):
     """Salva configuração no banco (centralizado)"""
     conn = get_conn()
-    if DATABASE_URL:
+    if HAS_PSYCOPG:
         # PostgreSQL - usar ON CONFLICT
         conn.execute("""
             INSERT INTO config(key, value) VALUES (%s,%s)

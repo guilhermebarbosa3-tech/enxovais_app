@@ -12,8 +12,11 @@ ATENÇÃO: Isso sobrescreverá dados existentes no PostgreSQL!
 
 import os
 import sqlite3
-import psycopg
-from psycopg.rows import dict_row
+try:
+    import psycopg
+    from psycopg.rows import dict_row
+except ImportError:
+    raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
 from core.db import SCHEMA_SQL, to_json, from_json
 
 # Configurações
@@ -71,7 +74,7 @@ def migrate_table(table_name, sqlite_conn, pg_conn):
 def main():
     print("🚀 Iniciando migração SQLite → PostgreSQL")
     print(f"📁 SQLite: {SQLITE_DB}")
-    print(f"🗄️ PostgreSQL: {DATABASE_URL[:50]}...")
+    print(f"🗄️ PostgreSQL: {(DATABASE_URL[:50] + '...') if DATABASE_URL else 'NÃO CONFIGURADO'}")
 
     # Conectar aos bancos
     sqlite_conn = sqlite3.connect(SQLITE_DB)
