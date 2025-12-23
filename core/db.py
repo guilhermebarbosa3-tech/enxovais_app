@@ -5,9 +5,12 @@ from typing import Any, Dict
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
 if DATABASE_URL:
-    # PostgreSQL para produção
-    import psycopg
-    from psycopg.rows import dict_row
+    try:
+        # PostgreSQL para produção
+        import psycopg
+        from psycopg.rows import dict_row
+    except ImportError:
+        raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
 else:
     # SQLite para desenvolvimento local
     import sqlite3
