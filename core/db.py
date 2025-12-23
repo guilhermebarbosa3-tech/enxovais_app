@@ -1,14 +1,23 @@
-import sqlite3, json, os, datetime
+import json, os, datetime
 from typing import Any, Dict
+
+# Detectar se estamos em produção (PostgreSQL) ou desenvolvimento (SQLite)
+DATABASE_URL = os.environ.get('DATABASE_URL')
+
+if DATABASE_URL:
+    # PostgreSQL para produção
+    import psycopg
+    from psycopg.rows import dict_row
+else:
+    # SQLite para desenvolvimento local
+    import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "exonvais.db")
 DB_PATH = os.path.abspath(DB_PATH)
 
-SCHEMA_SQL = r"""
-PRAGMA journal_mode=WAL;
-
+SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS clients (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
   address TEXT,
   cpf TEXT,
@@ -17,7 +26,7 @@ CREATE TABLE IF NOT EXISTS clients (
 );
 
 CREATE TABLE IF NOT EXISTS product_catalog (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   category TEXT NOT NULL,
   type TEXT NOT NULL,
   product TEXT NOT NULL,
@@ -25,7 +34,7 @@ CREATE TABLE IF NOT EXISTS product_catalog (
 );
 
 CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   client_id INTEGER NOT NULL,
   category TEXT NOT NULL,
   type TEXT NOT NULL,
@@ -42,7 +51,7 @@ CREATE TABLE IF NOT EXISTS orders (
 );
 
 CREATE TABLE IF NOT EXISTS shipments (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL,
   medium TEXT,
   when_ts TEXT NOT NULL,
@@ -51,7 +60,7 @@ CREATE TABLE IF NOT EXISTS shipments (
 );
 
 CREATE TABLE IF NOT EXISTS nonconformities (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL,
   kind TEXT NOT NULL,
   description TEXT,
@@ -62,7 +71,7 @@ CREATE TABLE IF NOT EXISTS nonconformities (
 );
 
 CREATE TABLE IF NOT EXISTS finance_entries (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   order_id INTEGER NOT NULL,
   cost REAL NOT NULL,
   sale REAL NOT NULL,
@@ -74,13 +83,13 @@ CREATE TABLE IF NOT EXISTS finance_entries (
 );
 
 CREATE TABLE IF NOT EXISTS payment_batches (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   total REAL NOT NULL,
   created_at TEXT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS audit_log (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  id SERIAL PRIMARY KEY,
   entity TEXT NOT NULL,
   entity_id INTEGER NOT NULL,
   action TEXT NOT NULL,
@@ -90,6 +99,11 @@ CREATE TABLE IF NOT EXISTS audit_log (
   user TEXT,
   ts TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS config (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 """
 
 _conn = None
@@ -97,15 +111,26 @@ _conn = None
 def get_conn():
     global _conn
     if _conn is None:
-        _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    _conn.row_factory = sqlite3.Row
+        if DATABASE_URL:
+            # PostgreSQL
+            _conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+        else:
+            # SQLite
+            _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+            _conn.row_factory = sqlite3.Row
     return _conn
 
 
 def init_db():
     conn = get_conn()
-    conn.executescript(SCHEMA_SQL)
-    conn.commit()
+    if DATABASE_URL:
+        # PostgreSQL
+        conn.execute(SCHEMA_SQL)
+        conn.commit()
+    else:
+        # SQLite
+        conn.executescript(SCHEMA_SQL)
+        conn.commit()
 
 
 def now_iso() -> str:
@@ -128,6 +153,7 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
     before_json = to_json(before) if before is not None else None
     after_json = to_json(after) if after is not None else None
     conn.execute(
+        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if DATABASE_URL else
         "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
         (entity, entity_id, action, field, before_json, after_json, user, now_iso())
     )
@@ -137,11 +163,17 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
 def load_config(key: str, default: Any):
     """Carrega configuração do banco (centralizado)"""
     conn = get_conn()
-    conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-    cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))
+    if DATABASE_URL:
+        # PostgreSQL
+        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+        cur = conn.execute("SELECT value FROM config WHERE key=%s", (key,))
+    else:
+        # SQLite
+        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+        cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))
     row = cur.fetchone()
     if row:
-        return from_json(row[0], default)
+        return from_json(row['value'] if DATABASE_URL else row[0], default)
     else:
         # Se não existe, salva o padrão
         save_config(key, default)
@@ -151,5 +183,13 @@ def load_config(key: str, default: Any):
 def save_config(key: str, value: Any):
     """Salva configuração no banco (centralizado)"""
     conn = get_conn()
-    conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))
+    if DATABASE_URL:
+        # PostgreSQL - usar ON CONFLICT
+        conn.execute("""
+            INSERT INTO config(key, value) VALUES (%s,%s)
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
+        """, (key, to_json(value)))
+    else:
+        # SQLite
+        conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))
     conn.commit()
