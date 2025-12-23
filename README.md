@@ -34,7 +34,33 @@ cd e:\dev\enxovais_app
 pip install -r requirements.txt
 ```
 
-## 📦 Executar o aplicativo
+## �️ Configuração do Banco de Dados
+
+O aplicativo suporta dois modos de banco de dados:
+
+### Desenvolvimento Local (SQLite)
+- **Padrão**: Usa SQLite automaticamente
+- **Arquivo**: `exonvais.db` na raiz do projeto
+- **Configuração**: Nenhuma necessária
+
+### Produção (PostgreSQL)
+Para usar PostgreSQL no Streamlit Cloud:
+
+1. **Crie uma conta gratuita** no [Supabase](https://supabase.com) ou [Neon](https://neon.tech)
+
+2. **Configure o banco**:
+   - Crie um novo projeto
+   - Anote a connection string (DATABASE_URL)
+
+3. **No Streamlit Cloud**:
+   - Vá para seu app > Settings > Secrets
+   - Adicione: `DATABASE_URL = "postgresql://..."`
+
+4. **Deploy**: O app detectará automaticamente e usará PostgreSQL
+
+**Nota**: Dados locais (SQLite) não são migrados automaticamente. Use scripts de migração se necessário.
+
+## �📦 Executar o aplicativo
 
 ```bash
 streamlit run app.py
