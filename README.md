@@ -58,7 +58,15 @@ Para usar PostgreSQL no Streamlit Cloud:
 
 4. **Deploy**: O app detectará automaticamente e usará PostgreSQL
 
-**Nota**: Dados locais (SQLite) não são migrados automaticamente. Use scripts de migração se necessário.
+**Nota**: Dados locais (SQLite) não são migrados automaticamente. Use o script de migração:
+
+```bash
+# Configure DATABASE_URL no ambiente
+export DATABASE_URL="postgresql://..."
+
+# Execute a migração
+python migrate_to_postgres.py
+```
 
 ## �📦 Executar o aplicativo
 
