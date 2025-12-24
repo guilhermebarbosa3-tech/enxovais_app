@@ -126,8 +126,16 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
             temp_path = None
             try:
                 if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
-                    r = requests.get(photo_path, timeout=10)
-                    if r.status_code == 200:
+                    # tentar download com retry simples (2 tentativas)
+                    r = None
+                    for attempt in range(2):
+                        try:
+                            r = requests.get(photo_path, timeout=10)
+                            if r.status_code == 200:
+                                break
+                        except Exception:
+                            r = None
+                    if r and r.status_code == 200:
                         temp_path = str(TEMP_DIR / f"nc_photo_{idx}_downloaded.jpg")
                         with open(temp_path, 'wb') as f:
                             f.write(r.content)
@@ -183,8 +191,16 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
             temp_path = None
             try:
                 if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
-                    r = requests.get(photo_path, timeout=10)
-                    if r.status_code == 200:
+                    # tentar download com retry simples (2 tentativas)
+                    r = None
+                    for attempt in range(2):
+                        try:
+                            r = requests.get(photo_path, timeout=10)
+                            if r.status_code == 200:
+                                break
+                        except Exception:
+                            r = None
+                    if r and r.status_code == 200:
                         temp_path = str(TEMP_DIR / f"original_photo_{idx}_downloaded.jpg")
                         with open(temp_path, 'wb') as f:
                             f.write(r.content)

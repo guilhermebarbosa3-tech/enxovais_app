@@ -155,14 +155,20 @@ def generate_order_pdf(order_row, photos_paths: Optional[list] = None) -> str:
             try:
                 # Suportar URLs públicas: baixar em memória
                 if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
-                    try:
-                        resp = requests.get(photo_path, timeout=10)
-                        resp.raise_for_status()
-                        img_src = _BytesIO(resp.content)
-                        img = Image.open(img_src)
-                    except Exception as e:
-                        print(f"Erro ao baixar/processar foto URL {photo_path}: {e}")
+                    # retry simples para downloads (2 tentativas)
+                    resp = None
+                    for attempt in range(2):
+                        try:
+                            resp = requests.get(photo_path, timeout=10)
+                            if resp.status_code == 200:
+                                break
+                        except Exception:
+                            resp = None
+                    if not resp or resp.status_code != 200:
+                        print(f"Erro ao baixar/processar foto URL {photo_path}: status={getattr(resp, 'status_code', None)}")
                         continue
+                    img_src = _BytesIO(resp.content)
+                    img = Image.open(img_src)
                 else:
                     # Abrir imagem local
                     try:
