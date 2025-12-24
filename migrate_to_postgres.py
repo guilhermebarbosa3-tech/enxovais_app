@@ -16,7 +16,7 @@ try:
     import psycopg  # type: ignore
     from psycopg.rows import dict_row  # type: ignore
 except ImportError:
-    raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
+    raise ImportError("psycopg não instalado. Instale com: pip install 'psycopg[c]>=3.1'")
 from core.db import SCHEMA_SQL, to_json, from_json
 
 # Configurações
