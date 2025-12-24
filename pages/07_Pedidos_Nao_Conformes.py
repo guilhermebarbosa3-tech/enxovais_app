@@ -106,8 +106,8 @@ for r in rows:
                     
                     # Registrar NC
                     exec_query(
-                        "INSERT INTO nonconformities(order_id, kind, description, photos, created_at) VALUES (?,?,?,?, datetime('now'))",
-                        (r['id'], kind, desc, to_json(saved_photos)),
+                        "INSERT INTO nonconformities(order_id, kind, description, photos, created_at) VALUES (?,?,?,?,?)",
+                        (r['id'], kind, desc, to_json(saved_photos), now_iso()),
                         commit=True
                     )
                     
@@ -120,8 +120,8 @@ for r in rows:
                     
                     # Registrar auditoria
                     exec_query(
-                        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (?,?,?,?,?,?,?, datetime('now'))",
-                        ('orders', r['id'], 'status_changed', 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF, 'system'),
+                        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (?,?,?,?,?,?,?,?)",
+                        ('orders', r['id'], 'status_changed', 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF, 'system', now_iso()),
                         commit=True
                     )
                     st.success("✅ NC registrada! Pedido retornou para 'Aguardando Confecção'")

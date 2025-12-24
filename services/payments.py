@@ -15,7 +15,7 @@ def create_payment_batch(order_ids: list[int]) -> int:
         cur = exec_query("INSERT INTO payment_batches(total, created_at) VALUES (%s, %s) RETURNING id", (total, now_iso()))
         batch_id = cur.fetchone()['id']
     else:
-        cur = exec_query("INSERT INTO payment_batches(total, created_at) VALUES (?, datetime('now'))", (total,), commit=True)
+        cur = exec_query("INSERT INTO payment_batches(total, created_at) VALUES (?, ?)", (total, now_iso()), commit=True)
         # sqlite cursor returned by exec_query supports lastrowid
         try:
             batch_id = cur.lastrowid
