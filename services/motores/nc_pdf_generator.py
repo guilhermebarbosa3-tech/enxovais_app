@@ -9,6 +9,7 @@ import os
 import tempfile
 from pathlib import Path
 from PIL import Image as PILImage
+import requests
 
 EXPORTS_DIR = Path("exports")
 EXPORTS_DIR.mkdir(exist_ok=True)
@@ -121,23 +122,46 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
         
         photo_elements = []
         for idx, photo_path in enumerate(problem_photos):
-            if os.path.exists(photo_path):
+            # suportar URLs públicas: baixar temporariamente se necessário
+            temp_path = None
+            try:
+                if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
+                    r = requests.get(photo_path, timeout=10)
+                    if r.status_code == 200:
+                        temp_path = str(TEMP_DIR / f"nc_photo_{idx}_downloaded.jpg")
+                        with open(temp_path, 'wb') as f:
+                            f.write(r.content)
+                    else:
+                        # não acessível
+                        continue
+                elif isinstance(photo_path, str) and os.path.exists(photo_path):
+                    temp_path = photo_path
+                else:
+                    continue
+
                 try:
                     # Redimensionar foto para caber no PDF (máx 2 inches)
-                    img = PILImage.open(photo_path)
+                    img = PILImage.open(temp_path)
                     max_width = 2.5 * inch
                     max_height = 2.5 * inch
                     img.thumbnail((max_width, max_height), PILImage.Resampling.LANCZOS)
                     
-                    # Salvar temporariamente em alta qualidade
-                    temp_path = str(TEMP_DIR / f"nc_photo_{idx}.jpg")
-                    img.save(temp_path, quality=85)
+                    # Salvar temporariamente em alta qualidade (usando temp_path já definido)
+                    out_path = str(TEMP_DIR / f"nc_photo_{idx}.jpg")
+                    img.save(out_path, quality=85)
                     
-                    photo_elements.append(Image(temp_path, width=2*inch, height=2*inch))
+                    photo_elements.append(Image(out_path, width=2*inch, height=2*inch))
                     if (idx + 1) % 2 == 0:
                         photo_elements.append(Spacer(1, 0.1*inch))
                 except Exception as e:
                     story.append(Paragraph(f"❌ Erro ao carregar foto {idx + 1}: {e}", styles['Normal']))
+                finally:
+                    # remover arquivo baixado temporário se criado
+                    if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')) and temp_path and os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                        except Exception:
+                            pass
         
         if photo_elements:
             photos_table = Table([photo_elements[i:i+2] for i in range(0, len(photo_elements), 2)])
@@ -153,21 +177,42 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
         
         original_elements = []
         for idx, photo_path in enumerate(original_photos):
-            if os.path.exists(photo_path):
+            # suportar URLs públicas: baixar temporariamente se necessário
+            temp_path = None
+            try:
+                if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
+                    r = requests.get(photo_path, timeout=10)
+                    if r.status_code == 200:
+                        temp_path = str(TEMP_DIR / f"original_photo_{idx}_downloaded.jpg")
+                        with open(temp_path, 'wb') as f:
+                            f.write(r.content)
+                    else:
+                        continue
+                elif isinstance(photo_path, str) and os.path.exists(photo_path):
+                    temp_path = photo_path
+                else:
+                    continue
+
                 try:
-                    img = PILImage.open(photo_path)
+                    img = PILImage.open(temp_path)
                     max_width = 2.5 * inch
                     max_height = 2.5 * inch
                     img.thumbnail((max_width, max_height), PILImage.Resampling.LANCZOS)
                     
-                    temp_path = str(TEMP_DIR / f"original_photo_{idx}.jpg")
-                    img.save(temp_path, quality=85)
+                    out_path = str(TEMP_DIR / f"original_photo_{idx}.jpg")
+                    img.save(out_path, quality=85)
                     
-                    original_elements.append(Image(temp_path, width=2*inch, height=2*inch))
+                    original_elements.append(Image(out_path, width=2*inch, height=2*inch))
                     if (idx + 1) % 2 == 0:
                         original_elements.append(Spacer(1, 0.1*inch))
                 except Exception as e:
                     story.append(Paragraph(f"❌ Erro ao carregar foto original {idx + 1}: {e}", styles['Normal']))
+                finally:
+                    if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')) and temp_path and os.path.exists(temp_path):
+                        try:
+                            os.remove(temp_path)
+                        except Exception:
+                            pass
         
         if original_elements:
             original_table = Table([original_elements[i:i+2] for i in range(0, len(original_elements), 2)])
