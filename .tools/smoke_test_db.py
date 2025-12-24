@@ -8,6 +8,12 @@ O script tenta usar psycopg2 para Postgres. Se não existir, indica instalação
 """
 import os
 import sys
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Em ambientes de desenvolvimento sem psycopg2 instalado, isso evita avisos do Pylance
+    import psycopg2  # type: ignore
+    import psycopg2.extras  # type: ignore
 
 def main():
     url = os.environ.get('DATABASE_URL')

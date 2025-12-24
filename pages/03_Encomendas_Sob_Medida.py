@@ -5,6 +5,9 @@ from core.validators import validate_prices
 from core.storage import save_and_resize
 from ui.components import section, photo_uploader
 
+st.session_state.setdefault("form_ver", 0)
+st.session_state.setdefault("uploader_ver", 0)
+
 st.title("Encomendas Sob Medida — Novo Pedido")
 conn = get_conn()
 
@@ -74,10 +77,9 @@ if not hierarchy:
     st.warning("⚠️ Configure a hierarquia de produtos em 'Configurações' primeiro.")
     st.stop()
 
-# Limpar form se pedido foi criado
-if st.session_state.get('pedido_criado'):
-    st.session_state['pedido_criado'] = False
-    st.rerun()
+# Versões dinâmicas para form e uploader (permitem reset sem deletar session_state)
+form_key = f"pedido_form_{st.session_state['form_ver']}"
+uploader_key = f"uploader_{st.session_state['uploader_ver']}"
 
 # SELETORES EM CASCATA - FORA DO FORM (para atualizar dinamicamente)
 st.subheader("📦 Selecione o Produto")
@@ -98,7 +100,7 @@ product = st.selectbox("Produto", produtos_disponiveis if produtos_disponiveis e
 st.divider()
 
 # FORM - com preços e observações
-with st.form("pedido_medida"):
+with st.form(key=form_key):
     st.write(f"**Cliente:** {client_sel}")
     st.write(f"**Produto:** {category} › {type_} › {product}")
     
@@ -127,7 +129,7 @@ with st.form("pedido_medida"):
 
 # Upload de fotos FORA do form para atualizar preview dinamicamente
 st.subheader("📸 Fotos do Produto")
-fotos_raw = photo_uploader("Fotos (múltiplas)")
+fotos_raw = photo_uploader("Fotos (múltiplas)", key=uploader_key)
 # Garantir que fotos é sempre uma lista
 fotos = fotos_raw if isinstance(fotos_raw, list) else ([fotos_raw] if fotos_raw else None)
 
@@ -161,7 +163,7 @@ if button_clicked:
         "acabamento": acabamento
     }
     
-    # Salvar fotos se existirem
+    # Salvar fotos se existirem (apenas URLs válidas serão persistidas)
     photos_paths = []
     if fotos:
         for idx, foto in enumerate(fotos):
@@ -171,7 +173,7 @@ if button_clicked:
                 photos_paths.append(url)
             else:
                 print("[order] photo upload failed, continuing without this photo")
-    
+
     exec_query(
         """
         INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
@@ -181,26 +183,14 @@ if button_clicked:
         commit=True
     )
     st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
-    # Resetar widgets do formulário para permitir novo pedido imediatamente
-    st.session_state['pedido_criado'] = True
-    for key in [
-        'Cliente','Categoria','Tipo','Produto',
-        'Preço de custo','Preço de venda',
-        'Largura (cm)','Altura (cm)','Profundidade (cm)','Outras medidas e detalhes',
-        'Tecido','Cor','Acabamento','Observações livres','Fotos (múltiplas)'
-    ]:
-        try:
-            if key in st.session_state:
-                del st.session_state[key]
-        except Exception:
-            pass
-    # Recarregar a página para refletir limpeza (fallback seguro entre versões do Streamlit)
-    if hasattr(st, "experimental_rerun"):
-        try:
-            st.experimental_rerun()  # type: ignore[attr-defined]
-        except Exception:
-            pass
-    elif hasattr(st, "rerun"):
+    # Incrementar versões para resetar o form e o uploader de forma limpa
+    st.session_state["form_ver"] += 1
+    st.session_state["uploader_ver"] += 1
+
+    # Fazer apenas UM rerun seguro para garantir que os widgets sejam recriados limpos
+    try:
+        st.experimental_rerun()  # type: ignore[attr-defined]
+    except Exception:
         try:
             st.rerun()
         except Exception:
