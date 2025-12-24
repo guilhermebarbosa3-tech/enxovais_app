@@ -4,18 +4,21 @@ from typing import Any, Dict, Union
 # Detectar se estamos em produção (PostgreSQL) ou desenvolvimento (SQLite)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 
-# Importações condicionais
+# Importações condicionais - lazy loading
+HAS_PSYCOPG = False
 if DATABASE_URL:
     try:
         import psycopg2  # type: ignore
         import psycopg2.extras  # type: ignore
         HAS_PSYCOPG = True
     except ImportError:
+        # PostgreSQL não disponível, usar SQLite
         HAS_PSYCOPG = False
-        raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
+        print("⚠️ PostgreSQL não disponível, usando SQLite")
 else:
     HAS_PSYCOPG = False
-    import sqlite3
+
+import sqlite3
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "exonvais.db")
 DB_PATH = os.path.abspath(DB_PATH)

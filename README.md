@@ -21,7 +21,7 @@ Sistema de gerenciamento de estoque para produtos de enxovais com controle compl
 
 - Python 3.8 ou superior
 - pip
-- PostgreSQL (opcional, apenas para produção)
+- PostgreSQL (opcional, apenas para produção - será usado SQLite se não disponível)
 
 ### Passos
 
@@ -35,7 +35,10 @@ cd e:\dev\enxovais_app
 pip install -r requirements.txt
 ```
 
-**Nota**: Para desenvolvimento local, apenas SQLite é necessário. PostgreSQL é usado apenas em produção (Streamlit Cloud) com psycopg2-binary.
+**Nota**: Para desenvolvimento local, apenas SQLite é necessário. PostgreSQL é usado apenas em produção (Streamlit Cloud). Se precisar de PostgreSQL, instale manualmente:
+```bash
+pip install psycopg2-binary
+```
 
 ## �️ Configuração do Banco de Dados
 

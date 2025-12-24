@@ -16,7 +16,9 @@ try:
     import psycopg2  # type: ignore
     import psycopg2.extras  # type: ignore
 except ImportError:
-    raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
+    # PostgreSQL não disponível
+    print("❌ PostgreSQL não disponível. Instale com: pip install psycopg2-binary")
+    exit(1)
 from core.db import SCHEMA_SQL, to_json, from_json
 
 # Configurações
