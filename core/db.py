@@ -250,12 +250,14 @@ def init_db():
     if is_postgres_conn(conn):
         # PostgreSQL - executar cada statement separadamente
         try:
+            cursor = conn.cursor()
             # Dividir o schema em statements individuais
             statements = [stmt.strip() for stmt in SCHEMA_SQL_PG.split(';') if stmt.strip()]
             for stmt in statements:
                 if stmt:  # Ignorar statements vazios
-                    conn.execute(stmt)  # type: ignore
-            conn.commit()  # type: ignore
+                    cursor.execute(stmt)
+            conn.commit()
+            cursor.close()
             print("✅ Schema PostgreSQL criado/atualizado")
             print("✅ FINALIZADO init_db()")
         except Exception as e:
@@ -296,12 +298,21 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
     is_pg = is_postgres_conn(conn)
     before_json = to_json(before) if before is not None else None
     after_json = to_json(after) if after is not None else None
-    conn.execute(  # type: ignore
-        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if is_pg else
-        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
-        (entity, entity_id, action, field, before_json, after_json, user, now_iso())
-    )
-    conn.commit()  # type: ignore
+    
+    if is_pg:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+            (entity, entity_id, action, field, before_json, after_json, user, now_iso())
+        )
+        conn.commit()
+        cursor.close()
+    else:
+        conn.execute(  # type: ignore
+            "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
+            (entity, entity_id, action, field, before_json, after_json, user, now_iso())
+        )
+        conn.commit()  # type: ignore
 
 
 def load_config(key: str, default: Any):
@@ -311,14 +322,17 @@ def load_config(key: str, default: Any):
 
     if is_pg:
         # PostgreSQL
-        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")  # type: ignore
-        cur = conn.execute("SELECT value FROM config WHERE key=%s", (key,))  # type: ignore
+        cursor = conn.cursor()
+        cursor.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
+        cursor.execute("SELECT value FROM config WHERE key=%s", (key,))
+        row = cursor.fetchone()
+        cursor.close()
     else:
         # SQLite
         conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")  # type: ignore
         cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))  # type: ignore
+        row = cur.fetchone()
 
-    row = cur.fetchone()
     if row:
         return from_json(row['value'] if is_pg else row[0], default)
     else:
@@ -333,11 +347,14 @@ def save_config(key: str, value: Any):
     is_pg = is_postgres_conn(conn)
     if is_pg:
         # PostgreSQL - usar ON CONFLICT
-        conn.execute("""  # type: ignore[attr-defined]
+        cursor = conn.cursor()
+        cursor.execute("""
             INSERT INTO config(key, value) VALUES (%s,%s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """, (key, to_json(value)))
+        conn.commit()
+        cursor.close()
     else:
         # SQLite
         conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))  # type: ignore
-    conn.commit()  # type: ignore  # type: ignore
+        conn.commit()  # type: ignore
