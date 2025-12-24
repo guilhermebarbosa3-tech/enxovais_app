@@ -3,6 +3,7 @@ from io import BytesIO
 from PIL import Image
 import requests
 import traceback
+from urllib.parse import quote
 
 # Local upload directory (fallback)
 BASE_UPLOAD = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
@@ -18,7 +19,9 @@ def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
         return None
 
     # Correct Supabase Storage upload endpoint: POST /storage/v1/object/{bucket}/{file_path}
-    upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{key}"
+    # URL-encode the key to avoid illegal characters in the path
+    key_enc = quote(key, safe='')
+    upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{key_enc}"
     headers = {
         'apikey': supabase_key,
         'Authorization': f'Bearer {supabase_key}',
@@ -26,6 +29,7 @@ def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
         'x-upsert': 'true',
     }
     data = buf.getvalue()
+    print(f"[storage] upload bytes len={len(data)}")
     try:
         print(f"[storage] supabase upload start: url={upload_url} name={key}")
         resp = requests.post(upload_url, headers=headers, data=data, timeout=30)
@@ -36,6 +40,20 @@ def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
             print(f"[storage] supabase upload HTTP error: status={getattr(resp, 'status_code', None)} body={getattr(resp, 'text', None)}")
             print("[storage] exception:")
             traceback.print_exc()
+            # if bad request / unsupported media, try multipart/form-data fallback
+            status = getattr(resp, 'status_code', None)
+            if status in (400, 415):
+                try:
+                    print("[storage] trying multipart/form-data fallback...")
+                    files = {'file': (os.path.basename(key), data, 'image/jpeg')}
+                    resp2 = requests.post(upload_url, headers={'apikey': supabase_key, 'Authorization': f'Bearer {supabase_key}', 'x-upsert': 'true'}, files=files, timeout=30)
+                    resp2.raise_for_status()
+                    public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{key_enc}"
+                    print(f"[storage] supabase upload success (multipart): {public_url}")
+                    return public_url
+                except Exception:
+                    print("[storage] multipart fallback failed:")
+                    traceback.print_exc()
             return None
         # public URL for public buckets
         public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{key}"
