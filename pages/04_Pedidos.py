@@ -1,7 +1,7 @@
 import streamlit as st
 import urllib.parse
 import os
-from core.db import get_conn, now_iso, from_json, to_json
+from core.db import get_conn, now_iso, from_json, to_json, exec_query
 from core.models import OrderStatus
 from core.audit import log_change
 from ui.status_badges import badge
@@ -11,7 +11,7 @@ from services.messenger import generate_whatsapp_message
 st.title("Pedidos")
 conn = get_conn()
 
-rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.CRIADO,)).fetchall()
+rows = exec_query("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.CRIADO,)).fetchall()
 
 for r in rows:
     with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
@@ -97,10 +97,9 @@ for r in rows:
             with col_confeccionar:
                 if st.button("🔄 Confeccionar", key=f"confeccionar_{r['id']}", use_container_width=True):
                     # Atualizar status após confeccionar
-                    conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
-                    conn.execute("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
-                        (r['id'], "COMPARTILHADO", now_iso(), pdf_path))
-                    conn.commit()
+                    exec_query("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']), commit=True)
+                    exec_query("INSERT INTO shipments(order_id, medium, when_ts, document_path) VALUES (?,?,?,?)", 
+                        (r['id'], "COMPARTILHADO", now_iso(), pdf_path), commit=True)
                     log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.CRIADO, OrderStatus.AGUARDANDO_CONF)
                     
                     # Limpar session_state
@@ -125,8 +124,7 @@ for r in rows:
             with col_confirm:
                 if st.button("✅ Sim, excluir", key=f"confirm_del_{r['id']}", use_container_width=True):
                     log_change("order", r['id'], "DELETE", "all", str(r), None)
-                    conn.execute("DELETE FROM orders WHERE id=?", (r['id'],))
-                    conn.commit()
+                    exec_query("DELETE FROM orders WHERE id=?", (r['id'],), commit=True)
                     st.success("Pedido excluído com sucesso")
                     st.session_state[f"delete_mode_{r['id']}"] = False
                     st.rerun()
@@ -151,9 +149,8 @@ for r in rows:
                     if r['notes_free'] != new_notes:
                         log_change("order", r['id'], "UPDATE", "notes_free", r['notes_free'], new_notes)
                     
-                    conn.execute("UPDATE orders SET price_cost=?, price_sale=?, notes_free=?, updated_at=? WHERE id=?", 
-                        (new_cost, new_sale, new_notes, now_iso(), r['id']))
-                    conn.commit()
+                    exec_query("UPDATE orders SET price_cost=?, price_sale=?, notes_free=?, updated_at=? WHERE id=?", 
+                        (new_cost, new_sale, new_notes, now_iso(), r['id']), commit=True)
                     st.session_state[f"edit_mode_{r['id']}"] = False
                     st.success("Alterações salvas")
                     st.rerun()

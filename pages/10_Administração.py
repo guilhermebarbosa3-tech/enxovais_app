@@ -2,7 +2,7 @@ import streamlit as st
 import os
 import shutil
 from pathlib import Path
-from core.db import get_conn, now_iso
+from core.db import get_conn, now_iso, exec_query
 from core.audit import log_change
 
 st.set_page_config(page_title="Administração", page_icon="🔧", layout="wide")
@@ -46,7 +46,7 @@ def find_orphaned_uploads():
             # Verificar se foto existe em algum pedido
             filename = photo_file.name
             # Buscar em todas as linhas da coluna photos
-            result = conn.execute(  # type: ignore
+            result = exec_query(  # type: ignore
                 "SELECT COUNT(*) as count FROM orders WHERE photos LIKE ?",
                 (f"%{filename}%",)
             ).fetchone()
@@ -58,7 +58,7 @@ def find_orphaned_uploads():
 
 def get_audit_log(limit=20):
     """Busca últimas mudanças do sistema."""
-    return conn.execute(  # type: ignore
+    return exec_query(  # type: ignore
         "SELECT * FROM audit_log ORDER BY ts DESC LIMIT ?",
         (limit,)
     ).fetchall()
@@ -73,12 +73,12 @@ with tab1:
     col1, col2, col3, col4 = st.columns(4)
     
     # Total de clientes
-    total_clients = conn.execute("SELECT COUNT(*) as count FROM clients").fetchone()  # type: ignore
+    total_clients = exec_query("SELECT COUNT(*) as count FROM clients").fetchone()  # type: ignore
     with col1:
         st.metric("👥 Clientes", total_clients['count'])
     
     # Total de pedidos
-    total_orders = conn.execute("SELECT COUNT(*) as count FROM orders").fetchone()  # type: ignore
+    total_orders = exec_query("SELECT COUNT(*) as count FROM orders").fetchone()  # type: ignore
     with col2:
         st.metric("📦 Pedidos", total_orders['count'])
     
@@ -230,8 +230,7 @@ with tab2:
     
     if st.button("🔧 Executar VACUUM (Compactar)", key="vacuum_db"):
         try:
-            conn.execute("VACUUM")  # type: ignore
-            conn.commit()  # type: ignore
+            exec_query("VACUUM", commit=True)  # type: ignore
             db_size_after = os.path.getsize(DB_FILE) if os.path.exists(DB_FILE) else 0
             saved = db_size_before - db_size_after
             

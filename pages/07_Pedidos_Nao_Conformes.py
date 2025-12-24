@@ -1,13 +1,13 @@
 import streamlit as st
 import os
-from core.db import get_conn, now_iso, to_json, from_json
+from core.db import get_conn, now_iso, to_json, from_json, exec_query
 from core.models import OrderStatus
 from core.storage import save_and_resize
 from services.motores.nc_pdf_generator import generate_nc_pdf
 
 st.title("Pedidos Não Conformes")
 conn = get_conn()
-rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.RECEBIDO_NC,)).fetchall()
+rows = exec_query("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.RECEBIDO_NC,)).fetchall()
 
 for r in rows:
     with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
@@ -101,22 +101,23 @@ for r in rows:
                             saved_photos.append(photo_path)
                     
                     # Registrar NC
-                    conn.execute(
+                    exec_query(
                         "INSERT INTO nonconformities(order_id, kind, description, photos, created_at) VALUES (?,?,?,?, datetime('now'))",
-                        (r['id'], kind, desc, to_json(saved_photos))
+                        (r['id'], kind, desc, to_json(saved_photos)),
+                        commit=True
                     )
                     
                     # Mover para Aguardando Confecção
-                    conn.execute(
+                    exec_query(
                         "UPDATE orders SET status=?, updated_at=? WHERE id=?",
-                        (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id'])
+                        (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']),
+                        commit=True
                     )
                     
                     # Registrar auditoria
-                    conn.execute(
+                    exec_query(
                         "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (?,?,?,?,?,?,?, datetime('now'))",
-                        ('orders', r['id'], 'status_changed', 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF, 'system')
+                        ('orders', r['id'], 'status_changed', 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF, 'system'),
+                        commit=True
                     )
-                    
-                    conn.commit()
                     st.success("✅ NC registrada! Pedido retornou para 'Aguardando Confecção'")

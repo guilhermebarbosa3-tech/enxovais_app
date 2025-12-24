@@ -358,3 +358,28 @@ def save_config(key: str, value: Any):
         # SQLite
         conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))  # type: ignore
         conn.commit()  # type: ignore
+
+
+  def exec_query(sql: str, params: tuple | list | None = None, commit: bool = False):
+    """Execute uma query abstrata que funciona em SQLite e PostgreSQL.
+
+    - Em PostgreSQL usa `cursor.execute()` e converte placeholders `?` → `%s`.
+    - Em SQLite usa `conn.execute()` com `?`.
+    Retorna o cursor/result proxy (tem `fetchall()` / `fetchone()`).
+    """
+    conn = get_conn()
+    is_pg = is_postgres_conn(conn)
+    params = tuple(params or ())
+    if is_pg:
+      cur = conn.cursor()
+      if "?" in sql:
+        sql = sql.replace("?", "%s")
+      cur.execute(sql, params)
+      if commit:
+        conn.commit()
+      return cur
+    else:
+      cur = conn.execute(sql, params)  # type: ignore
+      if commit:
+        conn.commit()  # type: ignore
+      return cur

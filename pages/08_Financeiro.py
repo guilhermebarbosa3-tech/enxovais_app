@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from core.db import get_conn
+from core.db import get_conn, exec_query
 from services.payments import create_payment_batch
 
 st.title("💰 Financeiro")
@@ -34,7 +34,7 @@ end_iso = end_date.isoformat()
 
 # Buscar TUDO no período (pendente E pago)
 # type: ignore
-rows = conn.execute("""
+rows = exec_query("""
     SELECT f.*, o.id AS order_id, o.category, o.type, o.product, c.name AS client_name 
     FROM finance_entries f 
     JOIN orders o ON o.id=f.order_id 

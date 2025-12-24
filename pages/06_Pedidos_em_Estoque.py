@@ -1,12 +1,12 @@
 import streamlit as st
-from core.db import get_conn, now_iso, from_json
+from core.db import get_conn, now_iso, from_json, exec_query
 from core.models import OrderStatus
 from ui.status_badges import badge
 from core.audit import log_change
 
 st.title("Pedidos em Estoque")
 conn = get_conn()
-rows = conn.execute("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.EM_ESTOQUE,)).fetchall()
+rows = exec_query("SELECT o.*, c.name AS client_name FROM orders o JOIN clients c ON c.id=o.client_id WHERE o.status=? ORDER BY o.id DESC", (OrderStatus.EM_ESTOQUE,)).fetchall()
 
 for r in rows:
     with st.expander(f"#{r['id']} — {r['client_name']} • {r['category']}/{r['type']}/{r['product']}"):
@@ -65,15 +65,14 @@ for r in rows:
                 if edit:
                     log_change("order", r['id'], "PRICE_UPDATE", "price_cost", r['price_cost'], new_cost)
                     log_change("order", r['id'], "PRICE_UPDATE", "price_sale", r['price_sale'], new_sale)
-                    conn.execute("UPDATE orders SET price_cost=?, price_sale=?, updated_at=? WHERE id=?", (new_cost, new_sale, now_iso(), r['id']))
+                    exec_query("UPDATE orders SET price_cost=?, price_sale=?, updated_at=? WHERE id=?", (new_cost, new_sale, now_iso(), r['id']), commit=False)
                 
                 # Criar lançamento financeiro
                 margin = (new_sale or 0.0) - (new_cost or 0.0)
-                conn.execute("INSERT INTO finance_entries(order_id, cost, sale, margin, settled, created_at) VALUES (?,?,?,?,0, ?)", (r['id'], new_cost, new_sale, margin, now_iso()))
+                exec_query("INSERT INTO finance_entries(order_id, cost, sale, margin, settled, created_at) VALUES (?,?,?,?,0, ?)", (r['id'], new_cost, new_sale, margin, now_iso()), commit=False)
                 
                 # Atualizar status
-                conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.ENTREGUE, now_iso(), r['id']))
-                conn.commit()
+                exec_query("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.ENTREGUE, now_iso(), r['id']), commit=True)
                 
                 log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.EM_ESTOQUE, OrderStatus.ENTREGUE)
                 
@@ -82,8 +81,7 @@ for r in rows:
         
         with col2:
             if st.button("🔙 Retornar para Confecção", key=f"return_{r['id']}", use_container_width=True):
-                conn.execute("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']))
-                conn.commit()
+                exec_query("UPDATE orders SET status=?, updated_at=? WHERE id=?", (OrderStatus.AGUARDANDO_CONF, now_iso(), r['id']), commit=True)
                 log_change("order", r['id'], "STATUS_UPDATE", "status", OrderStatus.EM_ESTOQUE, OrderStatus.AGUARDANDO_CONF)
                 st.warning("↩️ Pedido retornado para Aguardando Confecção")
                 st.rerun()
@@ -99,8 +97,7 @@ for r in rows:
             with col_confirm:
                 if st.button("✅ Sim, excluir", key=f"confirm_del_{r['id']}", use_container_width=True):
                     log_change("order", r['id'], "DELETE", "all", str(r), None)
-                    conn.execute("DELETE FROM orders WHERE id=?", (r['id'],))
-                    conn.commit()
+                    exec_query("DELETE FROM orders WHERE id=?", (r['id'],), commit=True)
                     st.success("✅ Pedido deletado com sucesso")
                     st.rerun()
             
