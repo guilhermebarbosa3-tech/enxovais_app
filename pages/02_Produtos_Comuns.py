@@ -9,8 +9,10 @@ st.title("Produtos Comuns — Novo Pedido")
 conn = get_conn()
 
 # Buscar últimos 5 clientes usados (com pedidos recentes) OU recém cadastrados
+# PostgreSQL não permite ORDER BY em uma query DISTINCT por coluna não selecionada.
+# Selecionamos client_id ordenados por created_at e deduplicamos em Python.
 recentes_pedidos = exec_query(
-    "SELECT DISTINCT client_id FROM orders ORDER BY created_at DESC LIMIT 5"
+    "SELECT client_id FROM orders ORDER BY created_at DESC LIMIT 5"
 ).fetchall()
 recentes_cadastrados = exec_query(
     "SELECT id as client_id FROM clients ORDER BY id DESC LIMIT 5"
