@@ -38,17 +38,31 @@ for r in rows:
         photos = from_json(r['photos'], [])
         if photos:
             st.subheader("📸 Fotos do Pedido")
+            # DEBUG: mostrar raw photos list para diagnóstico
+            st.write("(debug) photos raw:", photos)
             photo_cols = st.columns(6)
             for idx, photo_path in enumerate(photos):
                 col_idx = idx % 6
                 with photo_cols[col_idx]:
-                    if os.path.exists(photo_path):
-                        try:
+                    try:
+                        # Mostrar link de abertura direta
+                        if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
+                            st.markdown(f"[Abrir imagem]({photo_path})")
+                            # Tentar HEAD para verificar acessibilidade
+                            try:
+                                import requests
+                                h = requests.head(photo_path, timeout=5)
+                                st.write(f"(debug) HEAD status: {h.status_code}")
+                            except Exception as _e:
+                                st.write(f"(debug) HEAD error: {_e}")
                             st.image(photo_path, width=150, caption=f"Foto {idx + 1}")
-                        except Exception as e:
-                            st.warning(f"Erro ao carregar foto: {e}")
-                    else:
-                        st.warning(f"📷 Foto {idx + 1} não disponível")
+                        # Caso seja um caminho local (compatibilidade), verificar existência
+                        elif isinstance(photo_path, str) and os.path.exists(photo_path):
+                            st.image(photo_path, width=150, caption=f"Foto {idx + 1}")
+                        else:
+                            st.warning(f"📷 Foto {idx + 1} não disponível")
+                    except Exception as e:
+                        st.warning(f"Erro ao carregar foto: {e}")
         
         st.divider()
         
