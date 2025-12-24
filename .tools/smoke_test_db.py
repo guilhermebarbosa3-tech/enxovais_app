@@ -1,8 +1,8 @@
-"""
+r"""
 Smoke test para DB usando a variável de ambiente DATABASE_URL.
 Usage:
-  $env:DATABASE_URL = 'postgresql://user:pass@host:5432/db'
-  python .\.tools\smoke_test_db.py
+    $env:DATABASE_URL = 'postgresql://user:pass@host:5432/db'
+    python .\.tools\smoke_test_db.py
 
 O script tenta usar psycopg2 para Postgres. Se não existir, indica instalação.
 """
@@ -26,9 +26,11 @@ def main():
             conn = psycopg2.connect(url, cursor_factory=psycopg2.extras.RealDictCursor)
             cur = conn.cursor()
             cur.execute('SELECT COUNT(*) AS c FROM orders')
-            print('orders:', cur.fetchone()['c'])
+            r = cur.fetchone()
+            print('orders:', r['c'] if r else 0)
             cur.execute('SELECT COUNT(*) AS c FROM audit_log')
-            print('audit_log:', cur.fetchone()['c'])
+            r = cur.fetchone()
+            print('audit_log:', r['c'] if r else 0)
             conn.close()
         except Exception as e:
             print('Erro ao conectar/consultar Postgres:', e)
@@ -41,9 +43,11 @@ def main():
             conn = sqlite3.connect(path)
             cur = conn.cursor()
             cur.execute('SELECT COUNT(*) FROM orders')
-            print('orders:', cur.fetchone()[0])
+            r = cur.fetchone()
+            print('orders:', r[0] if r else 0)
             cur.execute('SELECT COUNT(*) FROM audit_log')
-            print('audit_log:', cur.fetchone()[0])
+            r = cur.fetchone()
+            print('audit_log:', r[0] if r else 0)
             conn.close()
         except Exception as e:
             print('Erro ao conectar/consultar SQLite:', e)
