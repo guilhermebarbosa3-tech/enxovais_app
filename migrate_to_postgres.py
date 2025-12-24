@@ -13,8 +13,8 @@ ATENÇÃO: Isso sobrescreverá dados existentes no PostgreSQL!
 import os
 import sqlite3
 try:
-    import psycopg
-    from psycopg.rows import dict_row
+    import psycopg  # type: ignore
+    from psycopg.rows import dict_row  # type: ignore
 except ImportError:
     raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
 from core.db import SCHEMA_SQL, to_json, from_json
