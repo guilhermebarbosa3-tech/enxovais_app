@@ -255,16 +255,19 @@ with tab3:
     audit_logs = get_audit_log(limit)
     
     if audit_logs:
-        # Criar tabela formatada
+        # Criar tabela formatada incluindo o usuário responsável
         for log in audit_logs:
             col1, col2, col3 = st.columns([2, 2, 4])
-            
+
             with col1:
                 st.caption(log['ts'])
-            
+
             with col2:
                 st.caption(f"**{log['entity']}** #{log['entity_id']}")
-            
+                # Mostrar username se presente
+                if log.get('username'):
+                    st.caption(f"Usuário: {log['username']}")
+
             with col3:
                 st.caption(f"{log['action']}: {log['field']} ({log['before']} → {log['after']})")
         

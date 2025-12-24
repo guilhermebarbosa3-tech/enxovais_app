@@ -293,7 +293,7 @@ def from_json(txt, default):
         return default
 
 
-def audit(entity: str, entity_id: int, action: str, field: str | None = None, before: Any = None, after: Any = None, user: str = "system"):
+def audit(entity: str, entity_id: int, action: str, field: str | None = None, before: Any = None, after: Any = None, username: str = "system"):
     conn = get_conn()
     is_pg = is_postgres_conn(conn)
     before_json = to_json(before) if before is not None else None
@@ -303,14 +303,14 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
         cursor = conn.cursor()
         cursor.execute(
           "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-          (entity, entity_id, action, field, before_json, after_json, user, now_iso())
+          (entity, entity_id, action, field, before_json, after_json, username, now_iso())
         )
         conn.commit()
         cursor.close()
     else:
         conn.execute(  # type: ignore
           "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (?,?,?,?,?,?,?,?)",
-          (entity, entity_id, action, field, before_json, after_json, user, now_iso())
+          (entity, entity_id, action, field, before_json, after_json, username, now_iso())
         )
         conn.commit()  # type: ignore
 
@@ -360,26 +360,28 @@ def save_config(key: str, value: Any):
         conn.commit()  # type: ignore
 
 
-  def exec_query(sql: str, params: tuple | list | None = None, commit: bool = False):
-    """Execute uma query abstrata que funciona em SQLite e PostgreSQL.
+def exec_query(sql: str, params: tuple | list | None = None, commit: bool = False):
+  """Execute uma query abstrata que funciona em SQLite e PostgreSQL.
 
-    - Em PostgreSQL usa `cursor.execute()` e converte placeholders `?` → `%s`.
-    - Em SQLite usa `conn.execute()` com `?`.
-    Retorna o cursor/result proxy (tem `fetchall()` / `fetchone()`).
-    """
-    conn = get_conn()
-    is_pg = is_postgres_conn(conn)
-    params = tuple(params or ())
-    if is_pg:
-      cur = conn.cursor()
-      if "?" in sql:
-        sql = sql.replace("?", "%s")
-      cur.execute(sql, params)
-      if commit:
-        conn.commit()
-      return cur
-    else:
-      cur = conn.execute(sql, params)  # type: ignore
-      if commit:
-        conn.commit()  # type: ignore
-      return cur
+  - Em PostgreSQL usa `cursor.execute()` e converte placeholders `?` → `%s`.
+  - Em SQLite usa `conn.execute()` com `?`.
+  Retorna o cursor/result proxy (tem `fetchall()` / `fetchone()`).
+  """
+  conn = get_conn()
+  is_pg = is_postgres_conn(conn)
+  params = tuple(params or ())
+
+  if is_pg:
+    cur = conn.cursor()
+    if "?" in sql:
+      sql = sql.replace("?", "%s")
+    cur.execute(sql, params)
+    if commit:
+      conn.commit()
+    return cur
+
+  # SQLite path
+  cur = conn.execute(sql, params)  # type: ignore
+  if commit:
+    conn.commit()  # type: ignore
+  return cur
