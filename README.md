@@ -49,25 +49,37 @@ O aplicativo suporta dois modos de banco de dados:
 - **Arquivo**: `exonvais.db` na raiz do projeto
 - **Configuração**: Nenhuma necessária
 
-### Produção (PostgreSQL)
-Para usar PostgreSQL no Streamlit Cloud:
+### Produção (PostgreSQL) - PERSISTÊNCIA REAL
+**IMPORTANTE**: Para dados persistentes no Streamlit Cloud, você DEVE configurar PostgreSQL.
 
-1. **Crie uma conta gratuita** no [Supabase](https://supabase.com) ou [Neon](https://neon.tech)
+#### 🚀 Guia Rápido - 5 minutos:
+
+1. **Crie conta gratuita no Supabase**:
+   - Acesse: https://supabase.com
+   - Cadastre-se (GitHub/Google)
+   - Crie novo projeto
 
 2. **Configure o banco**:
-   - Crie um novo projeto
-   - Anote a connection string (DATABASE_URL)
+   - No painel, vá em "Settings" > "Database"
+   - Copie a "Connection string" (URI)
+   - Deve ser algo como: `postgresql://postgres:[SENHA]@db.[ID].supabase.co:5432/postgres`
 
-3. **No Streamlit Cloud**:
-   - Vá para seu app > Settings > Secrets
-   - Adicione: `DATABASE_URL = "postgresql://..."`
+3. **Configure no Streamlit Cloud**:
+   - Acesse seu app no Streamlit Cloud
+   - Vá em "Settings" (⚙️) > "Secrets"
+   - Adicione a linha:
+     ```
+     DATABASE_URL = "postgresql://postgres:[SUA_SENHA]@db.[SEU_ID].supabase.co:5432/postgres"
+     ```
+   - Clique "Save"
 
-4. **Deploy**: O app detectará automaticamente e usará PostgreSQL
+4. **Faça deploy**:
+   - O app detectará automaticamente o PostgreSQL
+   - Dados serão persistidos para sempre!
 
-**Nota**: Dados locais (SQLite) não são migrados automaticamente. Use o script de migração:
-
+#### 🔄 Migrando dados existentes (opcional):
 ```bash
-# Configure DATABASE_URL no ambiente
+# Configure DATABASE_URL no ambiente local
 export DATABASE_URL="postgresql://..."
 
 # Execute a migração

@@ -1,5 +1,5 @@
 import streamlit as st
-from core.db import init_db, get_conn
+from core.db import init_db, get_conn, HAS_PSYCOPG
 from core.models import OrderStatus
 
 st.set_page_config(
@@ -9,6 +9,24 @@ st.set_page_config(
 )
 
 init_db()
+
+# Verificar se estamos no Streamlit Cloud sem PostgreSQL
+import os
+is_streamlit_cloud = os.environ.get('STREAMLIT_SERVER_HEADLESS') == 'true'
+if is_streamlit_cloud and not HAS_PSYCOPG:
+    st.warning("""
+    ⚠️ **ATENÇÃO: Dados não serão persistidos!**
+    
+    Você está usando SQLite no Streamlit Cloud, mas os dados serão perdidos a cada deploy.
+    
+    Para persistência real, configure PostgreSQL:
+    1. Crie conta gratuita no [Supabase](https://supabase.com) ou [Neon](https://neon.tech)
+    2. Vá em Settings > Secrets do seu app
+    3. Adicione: `DATABASE_URL = "postgresql://..."`
+    4. Faça novo deploy
+    
+    Dados atuais serão mantidos até o próximo deploy.
+    """)
 
 st.title("🧵 Estoque Exonvais — Dashboard")
 
