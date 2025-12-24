@@ -3,6 +3,9 @@ from typing import Any, Dict, Union
 
 # Detectar se estamos em produção (PostgreSQL) ou desenvolvimento (SQLite)
 DATABASE_URL = os.environ.get('DATABASE_URL')
+print(f"🔍 DATABASE_URL presente: {bool(DATABASE_URL)}")
+if DATABASE_URL:
+    print(f"🔍 DATABASE_URL: {DATABASE_URL[:50]}...")  # Log parcial por segurança
 
 # Importações condicionais - lazy loading
 HAS_PSYCOPG = False
@@ -11,11 +14,13 @@ if DATABASE_URL:
         import psycopg2  # type: ignore
         import psycopg2.extras  # type: ignore
         HAS_PSYCOPG = True
-    except ImportError:
+        print("✅ psycopg2 importado com sucesso")
+    except ImportError as e:
         # PostgreSQL não disponível, usar SQLite
         HAS_PSYCOPG = False
-        print("⚠️ PostgreSQL não disponível, usando SQLite")
+        print(f"⚠️ PostgreSQL não disponível: {e}")
 else:
+    print("ℹ️ Sem DATABASE_URL, usando SQLite")
     HAS_PSYCOPG = False
 
 import sqlite3
@@ -240,14 +245,30 @@ def is_postgres_conn(conn) -> bool:
 def init_db():
     conn = get_conn()
     if is_postgres_conn(conn):
-        # PostgreSQL
-        conn.execute(SCHEMA_SQL_PG)  # type: ignore
-        conn.commit()  # type: ignore
-        print("✅ Schema PostgreSQL criado/atualizado")
+        # PostgreSQL - executar cada statement separadamente
+        try:
+            # Dividir o schema em statements individuais
+            statements = [stmt.strip() for stmt in SCHEMA_SQL_PG.split(';') if stmt.strip()]
+            for stmt in statements:
+                if stmt:  # Ignorar statements vazios
+                    conn.execute(stmt)  # type: ignore
+            conn.commit()  # type: ignore
+            print("✅ Schema PostgreSQL criado/atualizado")
+        except Exception as e:
+            print(f"❌ Erro ao executar schema PostgreSQL: {e}")
+            # Fallback para SQLite se schema PostgreSQL falhar
+            print("🔄 Fazendo fallback para SQLite")
+            sqlite_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+            sqlite_conn.row_factory = sqlite3.Row
+            sqlite_conn.executescript(SCHEMA_SQL_SQLITE)
+            sqlite_conn.commit()
+            global _conn
+            _conn = sqlite_conn
     else:
         # SQLite
         conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
         conn.commit()
+        print("✅ Schema SQLite criado/atualizado")
         print("✅ Schema SQLite criado/atualizado")
 
 
