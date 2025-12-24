@@ -27,10 +27,31 @@ def main():
             cur = conn.cursor()
             cur.execute('SELECT COUNT(*) AS c FROM orders')
             r = cur.fetchone()
-            print('orders:', r['c'] if r else 0)
+            # r can be a dict (RealDictCursor) or a tuple; handle both
+            if r:
+                if isinstance(r, dict):
+                    print('orders:', r.get('c', 0))
+                else:
+                    # sequence/tuple-like
+                    try:
+                        print('orders:', r[0])
+                    except Exception:
+                        print('orders:', 0)
+            else:
+                print('orders:', 0)
+
             cur.execute('SELECT COUNT(*) AS c FROM audit_log')
             r = cur.fetchone()
-            print('audit_log:', r['c'] if r else 0)
+            if r:
+                if isinstance(r, dict):
+                    print('audit_log:', r.get('c', 0))
+                else:
+                    try:
+                        print('audit_log:', r[0])
+                    except Exception:
+                        print('audit_log:', 0)
+            else:
+                print('audit_log:', 0)
             conn.close()
         except Exception as e:
             print('Erro ao conectar/consultar Postgres:', e)
@@ -44,10 +65,23 @@ def main():
             cur = conn.cursor()
             cur.execute('SELECT COUNT(*) FROM orders')
             r = cur.fetchone()
-            print('orders:', r[0] if r else 0)
+            if r:
+                try:
+                    print('orders:', r[0])
+                except Exception:
+                    print('orders:', 0)
+            else:
+                print('orders:', 0)
+
             cur.execute('SELECT COUNT(*) FROM audit_log')
             r = cur.fetchone()
-            print('audit_log:', r[0] if r else 0)
+            if r:
+                try:
+                    print('audit_log:', r[0])
+                except Exception:
+                    print('audit_log:', 0)
+            else:
+                print('audit_log:', 0)
             conn.close()
         except Exception as e:
             print('Erro ao conectar/consultar SQLite:', e)
