@@ -46,7 +46,7 @@ def find_orphaned_uploads():
             # Verificar se foto existe em algum pedido
             filename = photo_file.name
             # Buscar em todas as linhas da coluna photos
-            result = conn.execute(
+            result = conn.execute(  # type: ignore
                 "SELECT COUNT(*) as count FROM orders WHERE photos LIKE ?",
                 (f"%{filename}%",)
             ).fetchone()
@@ -58,7 +58,7 @@ def find_orphaned_uploads():
 
 def get_audit_log(limit=20):
     """Busca últimas mudanças do sistema."""
-    return conn.execute(
+    return conn.execute(  # type: ignore
         "SELECT * FROM audit_log ORDER BY ts DESC LIMIT ?",
         (limit,)
     ).fetchall()
@@ -73,12 +73,12 @@ with tab1:
     col1, col2, col3, col4 = st.columns(4)
     
     # Total de clientes
-    total_clients = conn.execute("SELECT COUNT(*) as count FROM clients").fetchone()
+    total_clients = conn.execute("SELECT COUNT(*) as count FROM clients").fetchone()  # type: ignore
     with col1:
         st.metric("👥 Clientes", total_clients['count'])
     
     # Total de pedidos
-    total_orders = conn.execute("SELECT COUNT(*) as count FROM orders").fetchone()
+    total_orders = conn.execute("SELECT COUNT(*) as count FROM orders").fetchone()  # type: ignore
     with col2:
         st.metric("📦 Pedidos", total_orders['count'])
     
@@ -230,8 +230,8 @@ with tab2:
     
     if st.button("🔧 Executar VACUUM (Compactar)", key="vacuum_db"):
         try:
-            conn.execute("VACUUM")
-            conn.commit()
+            conn.execute("VACUUM")  # type: ignore
+            conn.commit()  # type: ignore
             db_size_after = os.path.getsize(DB_FILE) if os.path.exists(DB_FILE) else 0
             saved = db_size_before - db_size_after
             

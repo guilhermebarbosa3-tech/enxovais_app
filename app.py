@@ -16,11 +16,14 @@ st.title("🧵 Estoque Exonvais — Dashboard")
 conn = get_conn()
 cur = conn.cursor()
 cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.CRIADO,))
-criadas = cur.fetchone()[0]
+result = cur.fetchone()
+criadas = result[0] if result else 0
 cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.AGUARDANDO_CONF,))
-aguard = cur.fetchone()[0]
+result = cur.fetchone()
+aguard = result[0] if result else 0
 cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.EM_ESTOQUE,))
-estoque = cur.fetchone()[0]
+result = cur.fetchone()
+estoque = result[0] if result else 0
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Pedidos Criados", criadas)

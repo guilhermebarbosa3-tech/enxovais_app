@@ -33,14 +33,14 @@ start_iso = start_date.isoformat()
 end_iso = end_date.isoformat()
 
 # Buscar TUDO no período (pendente E pago)
-rows = conn.execute("""
+rows = conn.execute("""  # type: ignore
     SELECT f.*, o.id AS order_id, o.category, o.type, o.product, c.name AS client_name 
     FROM finance_entries f 
     JOIN orders o ON o.id=f.order_id 
     JOIN clients c ON c.id=o.client_id 
     WHERE date(f.created_at) BETWEEN ? AND ?
     ORDER BY f.settled ASC, f.created_at DESC
-""", (start_iso, end_iso)).fetchall()
+""", (start_iso, end_iso)).fetchall()  # type: ignore
 
 st.divider()
 

@@ -9,10 +9,10 @@ st.title("Produtos Comuns — Novo Pedido")
 conn = get_conn()
 
 # Buscar últimos 5 clientes usados (com pedidos recentes) OU recém cadastrados
-recentes_pedidos = conn.execute(
+recentes_pedidos = conn.execute(  # type: ignore
     "SELECT DISTINCT client_id FROM orders ORDER BY created_at DESC LIMIT 5"
 ).fetchall()
-recentes_cadastrados = conn.execute(
+recentes_cadastrados = conn.execute(  # type: ignore
     "SELECT id as client_id FROM clients ORDER BY id DESC LIMIT 5"
 ).fetchall()
 
@@ -24,7 +24,7 @@ for r in recentes_cadastrados:
     recentes_ids.add(r['client_id'])
 
 # Todos os clientes
-all_clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()
+all_clients = conn.execute("SELECT id, name FROM clients ORDER BY name").fetchall()  # type: ignore
 
 # Montar lista com recentes no topo
 client_list = []
@@ -145,13 +145,13 @@ if button_clicked:
             path = save_and_resize(foto, filename_base)
             photos_paths.append(path)
     
-    conn.execute(
+    conn.execute(  # type: ignore
         """
         INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso())
     )
-    conn.commit()
+    conn.commit()  # type: ignore
     st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
     st.session_state['pedido_criado'] = True

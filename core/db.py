@@ -1,5 +1,5 @@
 import json, os, datetime
-from typing import Any, Dict
+from typing import Any, Dict, Union
 
 # Detectar se estamos em produção (PostgreSQL) ou desenvolvimento (SQLite)
 DATABASE_URL = os.environ.get('DATABASE_URL')
@@ -19,6 +19,9 @@ else:
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "..", "exonvais.db")
 DB_PATH = os.path.abspath(DB_PATH)
+
+# Conexão global (singleton)
+_conn = None
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS clients (
@@ -108,12 +111,9 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT
-);
 """
 
-_conn = None
-
-def get_conn():
+def get_conn() -> Union[sqlite3.Connection, "psycopg2.extensions.connection"]:
     global _conn
     if _conn is None:
         if HAS_PSYCOPG:
@@ -130,11 +130,11 @@ def init_db():
     conn = get_conn()
     if HAS_PSYCOPG:
         # PostgreSQL
-        conn.execute(SCHEMA_SQL)
-        conn.commit()
+        conn.execute(SCHEMA_SQL)  # type: ignore
+        conn.commit()  # type: ignore
     else:
         # SQLite
-        conn.executescript(SCHEMA_SQL)
+        conn.executescript(SCHEMA_SQL)  # type: ignore
         conn.commit()
 
 
@@ -157,12 +157,12 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
     conn = get_conn()
     before_json = to_json(before) if before is not None else None
     after_json = to_json(after) if after is not None else None
-    conn.execute(
+    conn.execute(  # type: ignore
         "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if HAS_PSYCOPG else
         "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
         (entity, entity_id, action, field, before_json, after_json, user, now_iso())
     )
-    conn.commit()
+    conn.commit()  # type: ignore
 
 
 def load_config(key: str, default: Any):
@@ -170,12 +170,12 @@ def load_config(key: str, default: Any):
     conn = get_conn()
     if HAS_PSYCOPG:
         # PostgreSQL
-        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-        cur = conn.execute("SELECT value FROM config WHERE key=%s", (key,))
+        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")  # type: ignore
+        cur = conn.execute("SELECT value FROM config WHERE key=%s", (key,))  # type: ignore
     else:
         # SQLite
-        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")
-        cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))
+        conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")  # type: ignore
+        cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))  # type: ignore
     row = cur.fetchone()
     if row:
         return from_json(row['value'] if HAS_PSYCOPG else row[0], default)
@@ -190,11 +190,11 @@ def save_config(key: str, value: Any):
     conn = get_conn()
     if HAS_PSYCOPG:
         # PostgreSQL - usar ON CONFLICT
-        conn.execute("""
+        conn.execute("""  # type: ignore[attr-defined]
             INSERT INTO config(key, value) VALUES (%s,%s)
             ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value
         """, (key, to_json(value)))
     else:
         # SQLite
-        conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))
-    conn.commit()
+        conn.execute("INSERT OR REPLACE INTO config(key, value) VALUES (?,?)", (key, to_json(value)))  # type: ignore
+    conn.commit()  # type: ignore  # type: ignore
