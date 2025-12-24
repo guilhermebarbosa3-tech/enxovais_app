@@ -1,25 +1,72 @@
 import os
+from io import BytesIO
 from PIL import Image
-from .db import to_json
+import requests
 
+# Local upload directory (fallback)
 BASE_UPLOAD = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
 os.makedirs(BASE_UPLOAD, exist_ok=True)
 
+
+def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
+    """Tenta enviar o buffer para Supabase Storage e retorna URL pública ou None."""
+    supabase_url = os.environ.get('SUPABASE_URL')
+    supabase_key = os.environ.get('SUPABASE_KEY')
+    bucket = os.environ.get('SUPABASE_BUCKET', 'uploads')
+    if not (supabase_url and supabase_key):
+        return None
+
+    # upload endpoint: POST /storage/v1/object/{bucket}?cacheControl=...&upsert=true&name={path}
+    upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}"
+    params = {
+        'cacheControl': '3600',
+        'upsert': 'true',
+        'name': key,
+    }
+    headers = {
+        'Authorization': f'Bearer {supabase_key}',
+        'apikey': supabase_key,
+    }
+    files = {'file': (os.path.basename(key), buf.getvalue(), 'image/jpeg')}
+    try:
+        resp = requests.post(upload_url, params=params, headers=headers, files=files, timeout=30)
+        resp.raise_for_status()
+        # public URL for public buckets
+        public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{key}"
+        return public_url
+    except Exception:
+        return None
+
+
 def save_and_resize(img_file, filename_base: str, max_w: int = 1200):
-    """img_file: streamlit UploadedFile; retorna caminho salvo."""
+    """img_file: streamlit UploadedFile; retorna URL pública ou caminho salvo localmente."""
     img = Image.open(img_file)
-    
+
     # Converter RGBA para RGB (JPEG não suporta transparência)
     if img.mode in ('RGBA', 'LA', 'P'):
         bg = Image.new('RGB', img.size, (255, 255, 255))
         bg.paste(img, mask=img.split()[-1] if img.mode == 'RGBA' else None)
         img = bg
-    
+
     w, h = img.size
     if w > max_w:
         ratio = max_w / float(w)
         img = img.resize((max_w, int(h * ratio)))
+
     fname = f"{filename_base}.jpg"
+    key = fname  # store at root of bucket under filename
+
+    # Primeiro, tentar fazer upload para Supabase se configurado
+    buf = BytesIO()
+    img.save(buf, format="JPEG", quality=85)
+    buf.seek(0)
+
+    public_url = _upload_to_supabase(buf, key)
+    if public_url:
+        return public_url
+
+    # Fallback: salvar localmente e retornar caminho
     path = os.path.join(BASE_UPLOAD, fname)
-    img.save(path, format="JPEG", quality=85)
+    with open(path, 'wb') as f:
+        f.write(buf.getvalue())
     return path
