@@ -162,6 +162,8 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
                             os.remove(temp_path)
                         except Exception:
                             pass
+            except Exception as e:
+                story.append(Paragraph(f"❌ Erro genérico ao processar foto {idx + 1}: {e}", styles['Normal']))
         
         if photo_elements:
             photos_table = Table([photo_elements[i:i+2] for i in range(0, len(photo_elements), 2)])
@@ -213,6 +215,8 @@ def generate_nc_pdf(order_row, nc_kind, nc_description, problem_photos):
                             os.remove(temp_path)
                         except Exception:
                             pass
+            except Exception as e:
+                story.append(Paragraph(f"❌ Erro genérico ao processar foto original {idx + 1}: {e}", styles['Normal']))
         
         if original_elements:
             original_table = Table([original_elements[i:i+2] for i in range(0, len(original_elements), 2)])

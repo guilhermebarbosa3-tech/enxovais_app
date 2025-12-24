@@ -4,6 +4,8 @@ from datetime import datetime
 from io import BytesIO
 from typing import Optional
 from PIL import Image
+import requests
+from io import BytesIO as _BytesIO
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.units import inch
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -151,20 +153,36 @@ def generate_order_pdf(order_row, photos_paths: Optional[list] = None) -> str:
         
         for idx, photo_path in enumerate(photos_paths):
             try:
-                # Abrir imagem e redimensionar
-                img = Image.open(photo_path)
+                # Suportar URLs públicas: baixar em memória
+                if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
+                    try:
+                        resp = requests.get(photo_path, timeout=10)
+                        resp.raise_for_status()
+                        img_src = _BytesIO(resp.content)
+                        img = Image.open(img_src)
+                    except Exception as e:
+                        print(f"Erro ao baixar/processar foto URL {photo_path}: {e}")
+                        continue
+                else:
+                    # Abrir imagem local
+                    try:
+                        img = Image.open(photo_path)
+                    except Exception as e:
+                        print(f"Erro ao abrir foto local {photo_path}: {e}")
+                        continue
+
                 # Redimensionar para max 1.5 inch
                 img.thumbnail((1.5*inch, 1.5*inch), Image.Resampling.LANCZOS)
-                
+
                 # Salvar em BytesIO para reportlab
                 img_io = BytesIO()
                 img.save(img_io, format='JPEG', quality=85)
                 img_io.seek(0)
-                
+
                 # Criar imagem reportlab
                 rl_img = RLImage(img_io, width=1.4*inch, height=1.4*inch)
                 photo_row.append(rl_img)
-                
+
                 # Nova linha a cada 3 fotos
                 if (idx + 1) % 3 == 0:
                     photo_data.append(photo_row)
