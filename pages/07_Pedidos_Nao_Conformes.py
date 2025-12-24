@@ -31,9 +31,9 @@ for r in rows:
                 with photo_cols[idx % 3]:
                     try:
                         if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
-                            st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
+                            st.image(photo_path, use_column_width=True, caption=f"Original {idx + 1}")
                         elif isinstance(photo_path, str) and os.path.exists(photo_path):
-                            st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
+                            st.image(photo_path, use_column_width=True, caption=f"Original {idx + 1}")
                         else:
                             st.warning(f"📷 Foto {idx + 1} não disponível (arquivo não encontrado)")
                     except Exception as e:
@@ -57,8 +57,8 @@ for r in rows:
             st.caption(f"📷 {len(problem_photos)} foto(s) selecionada(s)")
             photo_cols = st.columns(3)
             for idx, photo in enumerate(problem_photos):
-                with photo_cols[idx % 3]:
-                    st.image(photo, use_container_width=True)
+                    with photo_cols[idx % 3]:
+                        st.image(photo, use_column_width=True)
         
         st.divider()
         
