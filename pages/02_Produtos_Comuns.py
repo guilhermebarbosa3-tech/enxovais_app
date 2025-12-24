@@ -156,4 +156,19 @@ if button_clicked:
         commit=True
     )
     st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
+    # Resetar widgets do formulário para permitir novo pedido imediatamente
     st.session_state['pedido_criado'] = True
+    # Limpar valores de widgets (usam labels como chaves por padrão)
+    for key in [
+        'Cliente','Categoria','Tipo','Produto',
+        'Preço de custo','Preço de venda',
+        'Tecido','Cor','Acabamento','Observações livres',
+        'Fotos (múltiplas)'
+    ]:
+        try:
+            if key in st.session_state:
+                del st.session_state[key]
+        except Exception:
+            pass
+    # Recarregar a página para refletir limpeza
+    st.experimental_rerun()
