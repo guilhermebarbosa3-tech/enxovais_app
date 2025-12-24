@@ -7,8 +7,8 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 # Importações condicionais
 if DATABASE_URL:
     try:
-        import psycopg  # type: ignore
-        from psycopg.rows import dict_row  # type: ignore
+        import psycopg2  # type: ignore
+        import psycopg2.extras  # type: ignore
         HAS_PSYCOPG = True
     except ImportError:
         HAS_PSYCOPG = False
@@ -118,7 +118,7 @@ def get_conn():
     if _conn is None:
         if HAS_PSYCOPG:
             # PostgreSQL
-            _conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+            _conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
         else:
             # SQLite
             _conn = sqlite3.connect(DB_PATH, check_same_thread=False)

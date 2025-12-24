@@ -13,10 +13,10 @@ ATENÇÃO: Isso sobrescreverá dados existentes no PostgreSQL!
 import os
 import sqlite3
 try:
-    import psycopg  # type: ignore
-    from psycopg.rows import dict_row  # type: ignore
+    import psycopg2  # type: ignore
+    import psycopg2.extras  # type: ignore
 except ImportError:
-    raise ImportError("psycopg não instalado. Instale com: pip install 'psycopg[c]>=3.1'")
+    raise ImportError("psycopg2-binary não instalado. Instale com: pip install psycopg2-binary")
 from core.db import SCHEMA_SQL, to_json, from_json
 
 # Configurações
@@ -78,12 +78,13 @@ def main():
 
     # Conectar aos bancos
     sqlite_conn = sqlite3.connect(SQLITE_DB)
-    pg_conn = psycopg.connect(DATABASE_URL, row_factory=dict_row)
+    pg_conn = psycopg2.connect(DATABASE_URL)
 
     try:
         # Criar tabelas no PostgreSQL
         print("🏗️ Criando tabelas no PostgreSQL...")
-        pg_conn.execute(SCHEMA_SQL)
+        pg_cur = pg_conn.cursor()
+        pg_cur.execute(SCHEMA_SQL)
         pg_conn.commit()
 
         # Lista de tabelas para migrar (ordem importa por causa das FKs)
