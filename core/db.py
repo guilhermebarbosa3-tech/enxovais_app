@@ -233,8 +233,8 @@ def get_conn() -> Any:
 
 def is_postgres_conn(conn) -> bool:
     """Verifica se a conexão é PostgreSQL ou SQLite"""
-    # PostgreSQL connections têm o método autocommit, SQLite não
-    return hasattr(conn, 'autocommit')
+    # Verifica se é uma conexão psycopg2 (PostgreSQL)
+    return str(type(conn)).startswith("<class 'psycopg2")
 
 
 def init_db():
