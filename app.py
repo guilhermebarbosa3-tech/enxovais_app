@@ -1,5 +1,5 @@
 import streamlit as st
-from core.db import init_db, get_conn, HAS_PSYCOPG
+from core.db import init_db, get_conn, HAS_PSYCOPG, exec_query
 from core.models import OrderStatus
 
 st.set_page_config(
@@ -31,17 +31,14 @@ if is_streamlit_cloud and not HAS_PSYCOPG:
 st.title("🧵 Estoque Exonvais — Dashboard")
 
 # KPIs simples (stub)
-conn = get_conn()
-cur = conn.cursor()
-cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.CRIADO,))
-result = cur.fetchone()
-criadas = result[0] if result else 0
-cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.AGUARDANDO_CONF,))
-result = cur.fetchone()
-aguard = result[0] if result else 0
-cur.execute("SELECT COUNT(*) FROM orders WHERE status=?", (OrderStatus.EM_ESTOQUE,))
-result = cur.fetchone()
-estoque = result[0] if result else 0
+criadas = exec_query("SELECT COUNT(*) as c FROM orders WHERE status=?", (OrderStatus.CRIADO,)).fetchone()
+criadas = (criadas['c'] if isinstance(criadas, dict) or hasattr(criadas, 'keys') else (criadas[0] if criadas else 0))
+
+aguard = exec_query("SELECT COUNT(*) as c FROM orders WHERE status=?", (OrderStatus.AGUARDANDO_CONF,)).fetchone()
+aguard = (aguard['c'] if isinstance(aguard, dict) or hasattr(aguard, 'keys') else (aguard[0] if aguard else 0))
+
+estoque = exec_query("SELECT COUNT(*) as c FROM orders WHERE status=?", (OrderStatus.EM_ESTOQUE,)).fetchone()
+estoque = (estoque['c'] if isinstance(estoque, dict) or hasattr(estoque, 'keys') else (estoque[0] if estoque else 0))
 
 col1, col2, col3 = st.columns(3)
 col1.metric("Pedidos Criados", criadas)
