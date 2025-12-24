@@ -2,4 +2,4 @@ streamlit==1.39.0
 pillow>=7.1.0,<11
 python-dateutil==2.9.0.post0
 reportlab>=4.0.0
-psycopg2-binary==2.9.5
+psycopg2-binary==2.9.10
