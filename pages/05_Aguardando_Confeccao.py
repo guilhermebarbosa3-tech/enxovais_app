@@ -39,13 +39,15 @@ for r in rows:
             for idx, photo_path in enumerate(photos):
                 col_idx = idx % 6
                 with photo_cols[col_idx]:
-                    if os.path.exists(photo_path):
-                        try:
+                    try:
+                        if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
                             st.image(photo_path, width=150, caption=f"Foto {idx + 1}")
-                        except Exception as e:
-                            st.warning(f"Erro ao carregar foto: {e}")
-                    else:
-                        st.warning(f"📷 Foto {idx + 1} não disponível")
+                        elif isinstance(photo_path, str) and os.path.exists(photo_path):
+                            st.image(photo_path, width=150, caption=f"Foto {idx + 1}")
+                        else:
+                            st.warning(f"📷 Foto {idx + 1} não disponível")
+                    except Exception as e:
+                        st.warning(f"Erro ao carregar foto: {e}")
         
         st.divider()
         

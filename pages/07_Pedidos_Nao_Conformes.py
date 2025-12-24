@@ -28,12 +28,16 @@ for r in rows:
             st.caption("📷 Fotos Originais do Pedido")
             photo_cols = st.columns(3)
             for idx, photo_path in enumerate(original_photos):
-                if os.path.exists(photo_path):
-                    with photo_cols[idx % 3]:
-                        st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
-                else:
-                    with photo_cols[idx % 3]:
-                        st.warning(f"📷 Foto {idx + 1} não disponível (arquivo não encontrado)")
+                with photo_cols[idx % 3]:
+                    try:
+                        if isinstance(photo_path, str) and photo_path.startswith(('http://', 'https://')):
+                            st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
+                        elif isinstance(photo_path, str) and os.path.exists(photo_path):
+                            st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
+                        else:
+                            st.warning(f"📷 Foto {idx + 1} não disponível (arquivo não encontrado)")
+                    except Exception as e:
+                        st.warning(f"Erro ao carregar foto: {e}")
             st.divider()
         
         # Tipo e descrição da NC
