@@ -191,4 +191,4 @@ if button_clicked:
                 del st.session_state[key]
         except Exception:
             pass
-    st.experimental_rerun()
+    st.experimental_rerun()  # type: ignore[attr-defined]

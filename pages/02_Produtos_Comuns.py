@@ -171,4 +171,4 @@ if button_clicked:
         except Exception:
             pass
     # Recarregar a página para refletir limpeza
-    st.experimental_rerun()
+    st.experimental_rerun()  # type: ignore[attr-defined]
