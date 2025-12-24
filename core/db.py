@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS config (
   value TEXT
 """
 
-def get_conn() -> Union[sqlite3.Connection, "psycopg2.extensions.connection"]:
+def get_conn() -> Any:
     global _conn
     if _conn is None:
         if HAS_PSYCOPG:
