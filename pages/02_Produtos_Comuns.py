@@ -170,5 +170,14 @@ if button_clicked:
                 del st.session_state[key]
         except Exception:
             pass
-    # Recarregar a página para refletir limpeza
-    st.experimental_rerun()  # type: ignore[attr-defined]
+    # Recarregar a página para refletir limpeza (fallback seguro entre versões do Streamlit)
+    if hasattr(st, "experimental_rerun"):
+        try:
+            st.experimental_rerun()  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    elif hasattr(st, "rerun"):
+        try:
+            st.rerun()
+        except Exception:
+            pass
