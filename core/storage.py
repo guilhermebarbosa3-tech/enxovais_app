@@ -17,24 +17,21 @@ def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
     if not (supabase_url and supabase_key):
         return None
 
-    # upload endpoint: POST /storage/v1/object/{bucket}?cacheControl=...&upsert=true&name={path}
-    upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}"
-    params = {
-        'cacheControl': '3600',
-        'upsert': 'true',
-        'name': key,
-    }
+    # Correct Supabase Storage upload endpoint: POST /storage/v1/object/{bucket}/{file_path}
+    upload_url = f"{supabase_url.rstrip('/')}/storage/v1/object/{bucket}/{key}"
     headers = {
-        'Authorization': f'Bearer {supabase_key}',
         'apikey': supabase_key,
+        'Authorization': f'Bearer {supabase_key}',
+        'Content-Type': 'image/jpeg',
+        'x-upsert': 'true',
     }
-    files = {'file': (os.path.basename(key), buf.getvalue(), 'image/jpeg')}
+    data = buf.getvalue()
     try:
         print(f"[storage] supabase upload start: url={upload_url} name={key}")
-        resp = requests.post(upload_url, params=params, headers=headers, files=files, timeout=30)
+        resp = requests.post(upload_url, headers=headers, data=data, timeout=30)
         try:
             resp.raise_for_status()
-        except Exception as e:
+        except Exception:
             # Log response for debugging
             print(f"[storage] supabase upload HTTP error: status={getattr(resp, 'status_code', None)} body={getattr(resp, 'text', None)}")
             print("[storage] exception:")
