@@ -113,7 +113,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   field TEXT,
   before TEXT,
   after TEXT,
-  user TEXT,
+  username TEXT,
   ts TEXT NOT NULL
 );
 
@@ -205,7 +205,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
   field TEXT,
   before TEXT,
   after TEXT,
-  user TEXT,
+  username TEXT,
   ts TEXT NOT NULL
 );
 
@@ -302,15 +302,15 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
     if is_pg:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
-            (entity, entity_id, action, field, before_json, after_json, user, now_iso())
+          "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)",
+          (entity, entity_id, action, field, before_json, after_json, user, now_iso())
         )
         conn.commit()
         cursor.close()
     else:
         conn.execute(  # type: ignore
-            "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
-            (entity, entity_id, action, field, before_json, after_json, user, now_iso())
+          "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (?,?,?,?,?,?,?,?)",
+          (entity, entity_id, action, field, before_json, after_json, user, now_iso())
         )
         conn.commit()  # type: ignore
 

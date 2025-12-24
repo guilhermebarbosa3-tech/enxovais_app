@@ -114,7 +114,7 @@ for r in rows:
                     
                     # Registrar auditoria
                     conn.execute(
-                        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?, datetime('now'))",
+                        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, username, ts) VALUES (?,?,?,?,?,?,?, datetime('now'))",
                         ('orders', r['id'], 'status_changed', 'status', OrderStatus.RECEBIDO_NC, OrderStatus.AGUARDANDO_CONF, 'system')
                     )
                     
