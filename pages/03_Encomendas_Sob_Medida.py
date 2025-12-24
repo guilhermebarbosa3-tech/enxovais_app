@@ -166,8 +166,11 @@ if button_clicked:
     if fotos:
         for idx, foto in enumerate(fotos):
             filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
-            path = save_and_resize(foto, filename_base)
-            photos_paths.append(path)
+            url = save_and_resize(foto, filename_base)
+            if url:
+                photos_paths.append(url)
+            else:
+                print("[order] photo upload failed, continuing without this photo")
     
     exec_query(
         """

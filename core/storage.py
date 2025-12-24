@@ -56,7 +56,7 @@ def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
                     traceback.print_exc()
             return None
         # public URL for public buckets
-        public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{key}"
+        public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{key_enc}"
         print(f"[storage] supabase upload success: {public_url}")
         return public_url
     except Exception:
@@ -92,8 +92,6 @@ def save_and_resize(img_file, filename_base: str, max_w: int = 1200):
     if public_url:
         return public_url
 
-    # Fallback: salvar localmente e retornar caminho
-    path = os.path.join(BASE_UPLOAD, fname)
-    with open(path, 'wb') as f:
-        f.write(buf.getvalue())
-    return path
+    # No fallback in production: do not save local files.
+    print("[storage] upload failed, photo will not be persisted")
+    return None
