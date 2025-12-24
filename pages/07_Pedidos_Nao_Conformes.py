@@ -31,6 +31,9 @@ for r in rows:
                 if os.path.exists(photo_path):
                     with photo_cols[idx % 3]:
                         st.image(photo_path, use_container_width=True, caption=f"Original {idx + 1}")
+                else:
+                    with photo_cols[idx % 3]:
+                        st.warning(f"📷 Foto {idx + 1} não disponível (arquivo não encontrado)")
             st.divider()
         
         # Tipo e descrição da NC
