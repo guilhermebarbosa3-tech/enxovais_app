@@ -268,10 +268,11 @@ def from_json(txt, default):
 
 def audit(entity: str, entity_id: int, action: str, field: str | None = None, before: Any = None, after: Any = None, user: str = "system"):
     conn = get_conn()
+    is_pg = is_postgres_conn(conn)
     before_json = to_json(before) if before is not None else None
     after_json = to_json(after) if after is not None else None
     conn.execute(  # type: ignore
-        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if HAS_PSYCOPG else
+        "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (%s,%s,%s,%s,%s,%s,%s,%s)" if is_pg else
         "INSERT INTO audit_log(entity, entity_id, action, field, before, after, user, ts) VALUES (?,?,?,?,?,?,?,?)",
         (entity, entity_id, action, field, before_json, after_json, user, now_iso())
     )
@@ -281,7 +282,9 @@ def audit(entity: str, entity_id: int, action: str, field: str | None = None, be
 def load_config(key: str, default: Any):
     """Carrega configuração do banco (centralizado)"""
     conn = get_conn()
-    if HAS_PSYCOPG:
+    is_pg = is_postgres_conn(conn)
+
+    if is_pg:
         # PostgreSQL
         conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")  # type: ignore
         cur = conn.execute("SELECT value FROM config WHERE key=%s", (key,))  # type: ignore
@@ -289,9 +292,10 @@ def load_config(key: str, default: Any):
         # SQLite
         conn.execute("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT)")  # type: ignore
         cur = conn.execute("SELECT value FROM config WHERE key=?", (key,))  # type: ignore
+
     row = cur.fetchone()
     if row:
-        return from_json(row['value'] if HAS_PSYCOPG else row[0], default)
+        return from_json(row['value'] if is_pg else row[0], default)
     else:
         # Se não existe, salva o padrão
         save_config(key, default)
@@ -301,7 +305,8 @@ def load_config(key: str, default: Any):
 def save_config(key: str, value: Any):
     """Salva configuração no banco (centralizado)"""
     conn = get_conn()
-    if HAS_PSYCOPG:
+    is_pg = is_postgres_conn(conn)
+    if is_pg:
         # PostgreSQL - usar ON CONFLICT
         conn.execute("""  # type: ignore[attr-defined]
             INSERT INTO config(key, value) VALUES (%s,%s)
