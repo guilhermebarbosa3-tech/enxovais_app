@@ -35,7 +35,7 @@ cd e:\dev\enxovais_app
 pip install -r requirements.txt
 ```
 
-**Nota**: Para desenvolvimento local, apenas SQLite é necessário. PostgreSQL é usado apenas em produção (Streamlit Cloud).
+**Nota**: Para desenvolvimento local, apenas SQLite é necessário. PostgreSQL é usado apenas em produção (Streamlit Cloud) com psycopg2-binary.
 
 ## �️ Configuração do Banco de Dados
 
