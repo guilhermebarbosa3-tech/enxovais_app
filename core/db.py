@@ -222,17 +222,19 @@ def get_conn() -> Any:
             try:
                 # PostgreSQL
                 _conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
-                print("✅ Conectado ao PostgreSQL (produção)")
+                print("✅ BACKEND ESCOLHIDO: PostgreSQL (produção)")
             except Exception as e:
                 print(f"⚠️ Falha na conexão PostgreSQL: {e}")
                 print("🔄 Fazendo fallback para SQLite")
                 # Fallback para SQLite se PostgreSQL falhar
                 _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
                 _conn.row_factory = sqlite3.Row
+                print("✅ BACKEND ESCOLHIDO: SQLite (fallback)")
         else:
             # SQLite (desenvolvimento)
             _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             _conn.row_factory = sqlite3.Row
+            print("✅ BACKEND ESCOLHIDO: SQLite (desenvolvimento)")
     return _conn
 
 
@@ -243,6 +245,7 @@ def is_postgres_conn(conn) -> bool:
 
 
 def init_db():
+    print("🚀 INICIANDO init_db()")
     conn = get_conn()
     if is_postgres_conn(conn):
         # PostgreSQL - executar cada statement separadamente
@@ -254,6 +257,7 @@ def init_db():
                     conn.execute(stmt)  # type: ignore
             conn.commit()  # type: ignore
             print("✅ Schema PostgreSQL criado/atualizado")
+            print("✅ FINALIZADO init_db()")
         except Exception as e:
             print(f"❌ Erro ao executar schema PostgreSQL: {e}")
             # Fallback para SQLite se schema PostgreSQL falhar
@@ -269,7 +273,7 @@ def init_db():
         conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
         conn.commit()
         print("✅ Schema SQLite criado/atualizado")
-        print("✅ Schema SQLite criado/atualizado")
+    print("✅ FINALIZADO init_db()")
 
 
 def now_iso() -> str:
