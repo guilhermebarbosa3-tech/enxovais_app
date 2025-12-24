@@ -213,26 +213,42 @@ CREATE TABLE IF NOT EXISTS config (
 def get_conn() -> Any:
     global _conn
     if _conn is None:
-        if HAS_PSYCOPG:
-            # PostgreSQL
-            _conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+        if HAS_PSYCOPG and DATABASE_URL:
+            try:
+                # PostgreSQL
+                _conn = psycopg2.connect(DATABASE_URL, cursor_factory=psycopg2.extras.RealDictCursor)
+                print("✅ Conectado ao PostgreSQL (produção)")
+            except Exception as e:
+                print(f"⚠️ Falha na conexão PostgreSQL: {e}")
+                print("🔄 Fazendo fallback para SQLite")
+                # Fallback para SQLite se PostgreSQL falhar
+                _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+                _conn.row_factory = sqlite3.Row
         else:
-            # SQLite
+            # SQLite (desenvolvimento)
             _conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             _conn.row_factory = sqlite3.Row
     return _conn
 
 
+def is_postgres_conn(conn) -> bool:
+    """Verifica se a conexão é PostgreSQL ou SQLite"""
+    # PostgreSQL connections têm o método autocommit, SQLite não
+    return hasattr(conn, 'autocommit')
+
+
 def init_db():
     conn = get_conn()
-    if HAS_PSYCOPG:
+    if is_postgres_conn(conn):
         # PostgreSQL
         conn.execute(SCHEMA_SQL_PG)  # type: ignore
         conn.commit()  # type: ignore
+        print("✅ Schema PostgreSQL criado/atualizado")
     else:
         # SQLite
         conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
         conn.commit()
+        print("✅ Schema SQLite criado/atualizado")
 
 
 def now_iso() -> str:
