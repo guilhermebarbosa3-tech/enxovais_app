@@ -375,13 +375,29 @@ def exec_query(sql: str, params: tuple | list | None = None, commit: bool = Fals
     cur = conn.cursor()
     if "?" in sql:
       sql = sql.replace("?", "%s")
-    cur.execute(sql, params)
-    if commit:
-      conn.commit()
-    return cur
+    try:
+      cur.execute(sql, params)
+      if commit:
+        conn.commit()
+      return cur
+    except Exception:
+      # Se ocorrer erro, garante rollback para sair do estado de transação falho
+      try:
+        conn.rollback()
+      except Exception:
+        pass
+      cur.close()
+      raise
 
   # SQLite path
-  cur = conn.execute(sql, params)  # type: ignore
-  if commit:
-    conn.commit()  # type: ignore
-  return cur
+  try:
+    cur = conn.execute(sql, params)  # type: ignore
+    if commit:
+      conn.commit()  # type: ignore
+    return cur
+  except Exception:
+    try:
+      conn.rollback()
+    except Exception:
+      pass
+    raise
