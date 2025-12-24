@@ -2,6 +2,7 @@ import os
 from io import BytesIO
 from PIL import Image
 import requests
+import traceback
 
 # Local upload directory (fallback)
 BASE_UPLOAD = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "uploads"))
@@ -29,12 +30,23 @@ def _upload_to_supabase(buf: BytesIO, key: str) -> str | None:
     }
     files = {'file': (os.path.basename(key), buf.getvalue(), 'image/jpeg')}
     try:
+        print(f"[storage] supabase upload start: url={upload_url} name={key}")
         resp = requests.post(upload_url, params=params, headers=headers, files=files, timeout=30)
-        resp.raise_for_status()
+        try:
+            resp.raise_for_status()
+        except Exception as e:
+            # Log response for debugging
+            print(f"[storage] supabase upload HTTP error: status={getattr(resp, 'status_code', None)} body={getattr(resp, 'text', None)}")
+            print("[storage] exception:")
+            traceback.print_exc()
+            return None
         # public URL for public buckets
         public_url = f"{supabase_url.rstrip('/')}/storage/v1/object/public/{bucket}/{key}"
+        print(f"[storage] supabase upload success: {public_url}")
         return public_url
     except Exception:
+        print("[storage] supabase upload failed with exception:")
+        traceback.print_exc()
         return None
 
 
