@@ -264,9 +264,18 @@ with tab3:
 
             with col2:
                 st.caption(f"**{log['entity']}** #{log['entity_id']}")
-                # Mostrar username se presente
-                if log.get('username'):
-                    st.caption(f"Usuário: {log['username']}")
+                # Mostrar username se presente (compatível com sqlite3.Row e dicts)
+                username = None
+                try:
+                    # dict-like with get
+                    username = log.get('username')
+                except AttributeError:
+                    # sqlite3.Row doesn't have get(); fallback seguro
+                    if 'username' in log:
+                        username = log['username']
+
+                if username:
+                    st.caption(f"Usuário: {username}")
 
             with col3:
                 st.caption(f"{log['action']}: {log['field']} ({log['before']} → {log['after']})")
