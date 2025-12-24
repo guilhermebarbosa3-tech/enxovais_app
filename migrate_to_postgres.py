@@ -19,7 +19,7 @@ except ImportError:
     # PostgreSQL não disponível
     print("❌ PostgreSQL não disponível. Instale com: pip install psycopg2-binary")
     exit(1)
-from core.db import SCHEMA_SQL, to_json, from_json
+from core.db import SCHEMA_SQL_PG, to_json, from_json
 
 # Configurações
 SQLITE_DB = os.path.join(os.path.dirname(__file__), "exonvais.db")
@@ -86,7 +86,7 @@ def main():
         # Criar tabelas no PostgreSQL
         print("🏗️ Criando tabelas no PostgreSQL...")
         pg_cur = pg_conn.cursor()
-        pg_cur.execute(SCHEMA_SQL)
+        pg_cur.execute(SCHEMA_SQL_PG)
         pg_conn.commit()
 
         # Lista de tabelas para migrar (ordem importa por causa das FKs)

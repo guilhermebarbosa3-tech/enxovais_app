@@ -26,7 +26,8 @@ DB_PATH = os.path.abspath(DB_PATH)
 # Conexão global (singleton)
 _conn = None
 
-SCHEMA_SQL = """
+# Schema para PostgreSQL
+SCHEMA_SQL_PG = """
 CREATE TABLE IF NOT EXISTS clients (
   id SERIAL PRIMARY KEY,
   name TEXT NOT NULL,
@@ -114,6 +115,99 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT
+);
+"""
+
+# Schema para SQLite
+SCHEMA_SQL_SQLITE = """
+CREATE TABLE IF NOT EXISTS clients (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  address TEXT,
+  cpf TEXT,
+  phone TEXT,
+  status TEXT DEFAULT 'ADIMPLENTE'
+);
+
+CREATE TABLE IF NOT EXISTS product_catalog (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  product TEXT NOT NULL,
+  measure_based INTEGER DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS orders (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  client_id INTEGER NOT NULL,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  product TEXT NOT NULL,
+  price_cost REAL NOT NULL,
+  price_sale REAL NOT NULL,
+  notes_struct TEXT DEFAULT '{}',
+  notes_free TEXT DEFAULT '',
+  photos TEXT DEFAULT '[]',
+  status TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(client_id) REFERENCES clients(id)
+);
+
+CREATE TABLE IF NOT EXISTS shipments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL,
+  medium TEXT,
+  when_ts TEXT NOT NULL,
+  document_path TEXT,
+  FOREIGN KEY(order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS nonconformities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL,
+  kind TEXT NOT NULL,
+  description TEXT,
+  photos TEXT DEFAULT '[]',
+  count INTEGER DEFAULT 1,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS finance_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  order_id INTEGER NOT NULL,
+  cost REAL NOT NULL,
+  sale REAL NOT NULL,
+  margin REAL NOT NULL,
+  settled INTEGER DEFAULT 0,
+  batch_id INTEGER,
+  created_at TEXT NOT NULL,
+  FOREIGN KEY(order_id) REFERENCES orders(id)
+);
+
+CREATE TABLE IF NOT EXISTS payment_batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  total REAL NOT NULL,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  entity TEXT NOT NULL,
+  entity_id INTEGER NOT NULL,
+  action TEXT NOT NULL,
+  field TEXT,
+  before TEXT,
+  after TEXT,
+  user TEXT,
+  ts TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS config (
+  key TEXT PRIMARY KEY,
+  value TEXT
+);
 """
 
 def get_conn() -> Any:
@@ -133,11 +227,11 @@ def init_db():
     conn = get_conn()
     if HAS_PSYCOPG:
         # PostgreSQL
-        conn.execute(SCHEMA_SQL)  # type: ignore
+        conn.execute(SCHEMA_SQL_PG)  # type: ignore
         conn.commit()  # type: ignore
     else:
         # SQLite
-        conn.executescript(SCHEMA_SQL)  # type: ignore
+        conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
         conn.commit()
 
 
