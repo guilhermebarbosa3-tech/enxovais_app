@@ -92,6 +92,14 @@ def save_and_resize(img_file, filename_base: str, max_w: int = 1200):
     if public_url:
         return public_url
 
-    # No fallback in production: do not save local files.
-    print("[storage] upload failed, photo will not be persisted")
-    return None
+    # Fallback: salvar localmente para desenvolvimento
+    local_path = os.path.join(BASE_UPLOAD, fname)
+    try:
+        buf.seek(0)
+        with open(local_path, 'wb') as f:
+            f.write(buf.read())
+        print(f"[storage] saved locally: {local_path}")
+        return local_path
+    except Exception as e:
+        print(f"[storage] local save failed: {e}")
+        return None

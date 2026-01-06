@@ -121,6 +121,23 @@ CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT
 );
+
+CREATE TABLE IF NOT EXISTS stock_items (
+  id SERIAL PRIMARY KEY,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  product TEXT NOT NULL,
+  price_cost REAL NOT NULL,
+  price_sale REAL NOT NULL,
+  notes_struct TEXT DEFAULT '{}',
+  notes_free TEXT DEFAULT '',
+  photos TEXT DEFAULT '[]',
+  quantity INTEGER DEFAULT 1,
+  owner_client_id INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(owner_client_id) REFERENCES clients(id)
+);
 """
 
 # Schema para SQLite
@@ -212,6 +229,23 @@ CREATE TABLE IF NOT EXISTS audit_log (
 CREATE TABLE IF NOT EXISTS config (
   key TEXT PRIMARY KEY,
   value TEXT
+);
+
+CREATE TABLE IF NOT EXISTS stock_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  category TEXT NOT NULL,
+  type TEXT NOT NULL,
+  product TEXT NOT NULL,
+  price_cost REAL NOT NULL,
+  price_sale REAL NOT NULL,
+  notes_struct TEXT DEFAULT '{}',
+  notes_free TEXT DEFAULT '',
+  photos TEXT DEFAULT '[]',
+  quantity INTEGER DEFAULT 1,
+  owner_client_id INTEGER,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  FOREIGN KEY(owner_client_id) REFERENCES clients(id)
 );
 """
 

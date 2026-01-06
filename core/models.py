@@ -10,6 +10,9 @@ class OrderStatus:
     EM_ESTOQUE = "EM_ESTOQUE"
     ENTREGUE = "ENTREGUE"
     FINALIZADO_FIN = "FINALIZADO_FIN"
+    # Novos status para módulo de vendas
+    DISPONIVEL_VENDA = "DISPONIVEL_VENDA"  # Produto no estoque para venda direta
+    VENDIDO = "VENDIDO"                     # Produto vendido no caixa
 
 @dataclass
 class Client:

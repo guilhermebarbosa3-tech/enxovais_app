@@ -113,7 +113,18 @@ with st.form(key=form_key):
     acabamento = st.selectbox("Acabamento", acabamentos if acabamentos else ["Configure em Configurações"])
     
     obs_livre = st.text_area("Observações livres")
-    button_clicked = st.form_submit_button("Concluir Pedido")
+    
+    # Quantidade para estoque de vendas
+    st.divider()
+    st.write("**📦 Opções de destino:**")
+    quantidade_estoque = st.number_input("Quantidade (para estoque de vendas)", value=1, min_value=1, step=1, help="Se for adicionar ao estoque de vendas, informe a quantidade disponível")
+    
+    # Botões de ação
+    col_btn1, col_btn2 = st.columns(2)
+    with col_btn1:
+        button_pedido = st.form_submit_button("📋 Concluir Pedido", use_container_width=True)
+    with col_btn2:
+        button_estoque = st.form_submit_button("🛒 Adicionar ao Estoque Vendas", use_container_width=True)
 
 # Upload de fotos FORA do form para atualizar preview dinamicamente
 st.subheader("📸 Fotos do Produto")
@@ -132,7 +143,7 @@ if fotos:
     st.write(f"✅ {len(fotos)} foto(s) carregada(s)")
 
 # Processar submissão do formulário
-if button_clicked:
+if button_pedido or button_estoque:
     # Validar preços
     if price_cost is None or price_sale is None:
         st.error("❌ Preço de custo e preço de venda são obrigatórios!")
@@ -152,15 +163,30 @@ if button_clicked:
             else:
                 print("[order] photo upload failed, continuing without this photo")
 
-    exec_query(
-        """
-        INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        """,
-        (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso()),
-        commit=True
-    )
-    st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
+    if button_pedido:
+        # Fluxo tradicional: criar pedido
+        exec_query(
+            """
+            INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso()),
+            commit=True
+        )
+        st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
+    
+    elif button_estoque:
+        # Novo fluxo: adicionar ao estoque de vendas
+        exec_query(
+            """
+            INSERT INTO stock_items(category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, quantity, owner_client_id, created_at, updated_at)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+            """,
+            (category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), quantidade_estoque, client_map[client_sel], now_iso(), now_iso()),
+            commit=True
+        )
+        st.success(f"✅ Produto adicionado ao Estoque de Vendas! Quantidade: {quantidade_estoque}")
+    
     # Incrementar versões para resetar o form e o uploader de forma limpa
     st.session_state["form_ver"] += 1
     st.session_state["uploader_ver"] += 1

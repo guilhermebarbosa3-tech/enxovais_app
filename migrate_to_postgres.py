@@ -99,7 +99,8 @@ def main():
             'finance_entries',
             'payment_batches',
             'audit_log',
-            'config'
+            'config',
+            'stock_items'
         ]
 
         # Migrar cada tabela
