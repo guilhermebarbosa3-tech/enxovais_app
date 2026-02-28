@@ -1,5 +1,8 @@
 import streamlit as st
-from core.db import get_conn, exec_query
+from core.db import get_conn, exec_query, init_db
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("Relatórios")
 conn = get_conn()

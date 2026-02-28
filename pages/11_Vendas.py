@@ -1,8 +1,11 @@
 import streamlit as st
 import os
-from core.db import get_conn, now_iso, from_json, to_json, exec_query, load_config
+from core.db import get_conn, now_iso, from_json, to_json, exec_query, load_config, init_db
 from core.models import OrderStatus
 from core.audit import log_change
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.set_page_config(layout="wide")
 st.title("🛒 Vendas — Estoque Pronto")

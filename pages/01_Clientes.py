@@ -1,7 +1,10 @@
 import streamlit as st
-from core.db import get_conn, exec_query, now_iso
+from core.db import get_conn, exec_query, now_iso, init_db
 from core.audit import log_change
 from ui.components import section
+
+# Garantir que o banco está inicializado (inclui migrações)
+init_db()
 
 st.title("👥 Clientes")
 conn = get_conn()

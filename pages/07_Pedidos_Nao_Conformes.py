@@ -1,9 +1,12 @@
 import streamlit as st
 import os
-from core.db import get_conn, now_iso, to_json, from_json, exec_query
+from core.db import get_conn, now_iso, to_json, from_json, exec_query, init_db
 from core.models import OrderStatus
 from core.storage import save_and_resize
 from services.motores.nc_pdf_generator import generate_nc_pdf
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("Pedidos Não Conformes")
 conn = get_conn()

@@ -1,8 +1,11 @@
 import streamlit as st
-from core.db import get_conn, now_iso, from_json, exec_query
+from core.db import get_conn, now_iso, from_json, exec_query, init_db
 from core.models import OrderStatus
 from ui.status_badges import badge
 from core.audit import log_change
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("Pedidos em Estoque")
 conn = get_conn()

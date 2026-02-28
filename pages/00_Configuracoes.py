@@ -1,5 +1,8 @@
 import streamlit as st
-from core.db import get_conn, to_json, from_json, load_config, save_config
+from core.db import get_conn, to_json, from_json, load_config, save_config, init_db
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("⚙️ Configurações do Sistema")
 

@@ -1,10 +1,13 @@
 import streamlit as st
-from core.db import get_conn, now_iso, to_json, from_json, load_config, save_config, exec_query
+from core.db import get_conn, now_iso, to_json, from_json, load_config, save_config, exec_query, init_db
 from core.models import OrderStatus
 from core.validators import validate_prices
 from core.storage import save_and_resize
 from core.audit import log_change
 from ui.components import section, photo_uploader
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.session_state.setdefault("form_ver", 0)
 st.session_state.setdefault("uploader_ver", 0)

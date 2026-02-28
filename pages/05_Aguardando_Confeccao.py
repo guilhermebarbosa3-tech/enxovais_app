@@ -1,9 +1,12 @@
 import streamlit as st
 import os
-from core.db import get_conn, now_iso, from_json, exec_query
+from core.db import get_conn, now_iso, from_json, exec_query, init_db
 from core.models import OrderStatus
 from core.audit import log_change
 from ui.status_badges import badge
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("Aguardando Confecção")
 conn = get_conn()

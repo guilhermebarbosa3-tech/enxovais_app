@@ -1,12 +1,15 @@
 import streamlit as st
 import urllib.parse
 import os
-from core.db import get_conn, now_iso, from_json, to_json, exec_query
+from core.db import get_conn, now_iso, from_json, to_json, exec_query, init_db
 from core.models import OrderStatus
 from core.audit import log_change
 from ui.status_badges import badge
 from services.motores.pdf_generator import generate_order_pdf
 from services.messenger import generate_whatsapp_message
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("Pedidos")
 conn = get_conn()

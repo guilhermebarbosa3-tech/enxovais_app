@@ -30,6 +30,7 @@ DB_PATH = os.path.abspath(DB_PATH)
 
 # Conexão global (singleton)
 _conn = None
+_db_initialized = False
 
 # Schema para PostgreSQL
 SCHEMA_SQL_PG = """
@@ -281,6 +282,10 @@ def is_postgres_conn(conn) -> bool:
 
 
 def init_db():
+    global _db_initialized
+    if _db_initialized:
+        return  # Já inicializado, evita rodar múltiplas vezes
+    
     print("🚀 INICIANDO init_db()")
     conn = get_conn()
     if is_postgres_conn(conn):
@@ -327,6 +332,7 @@ def init_db():
     # Executar migrações automáticas
     _run_migrations()
     
+    _db_initialized = True
     print("✅ FINALIZADO init_db()")
 
 

@@ -2,8 +2,11 @@ import streamlit as st
 import os
 import shutil
 from pathlib import Path
-from core.db import get_conn, now_iso, exec_query
+from core.db import get_conn, now_iso, exec_query, init_db
 from core.audit import log_change
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.set_page_config(page_title="Administração", page_icon="🔧", layout="wide")
 st.title("🔧 Administração do Sistema")

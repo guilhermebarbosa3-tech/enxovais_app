@@ -1,8 +1,11 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timedelta
-from core.db import get_conn, exec_query
+from core.db import get_conn, exec_query, init_db
 from services.payments import create_payment_batch
+
+# Garantir que o banco está inicializado
+init_db()
 
 st.title("💰 Financeiro")
 conn = get_conn()
