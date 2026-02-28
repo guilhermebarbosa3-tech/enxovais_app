@@ -1,6 +1,9 @@
 import json, os, datetime
 from typing import Any, Dict, Union
 
+# Versão do schema para forçar redeploy limpo
+__schema_version__ = "1.1.0"
+
 # Detectar se estamos em produção (PostgreSQL) ou desenvolvimento (SQLite)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 print(f"🔍 DATABASE_URL presente: {bool(DATABASE_URL)}")
@@ -356,7 +359,17 @@ def _run_migrations():
             cursor.close()
         else:
             cols = conn.execute("PRAGMA table_info(clients)").fetchall()
-            has_is_active = any(col['name'] == 'is_active' for col in cols)
+            # PRAGMA retorna: cid, name, type, notnull, dflt_value, pk
+            # Usar índice numérico [1] para o nome da coluna (mais robusto)
+            column_names = []
+            for col in cols:
+                try:
+                    # Tentar acesso por chave primeiro, depois por índice
+                    col_name = col['name'] if hasattr(col, 'keys') else col[1]
+                    column_names.append(col_name)
+                except (KeyError, IndexError, TypeError):
+                    continue
+            has_is_active = 'is_active' in column_names
         
         if not has_is_active:
             print("📝 Migração 001: Adicionando coluna is_active...")
