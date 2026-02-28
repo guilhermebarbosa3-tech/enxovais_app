@@ -402,6 +402,48 @@ def now_iso() -> str:
     return datetime.datetime.utcnow().isoformat()
 
 
+def has_is_active_column() -> bool:
+    """Verifica se a coluna is_active existe na tabela clients (cache global)"""
+    global _has_is_active_cache
+    if '_has_is_active_cache' not in globals():
+        _has_is_active_cache = None
+    
+    if _has_is_active_cache is not None:
+        return _has_is_active_cache
+    
+    try:
+        conn = get_conn()
+        if is_postgres_conn(conn):
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'clients' AND column_name = 'is_active'
+            """)
+            result = cursor.fetchone()
+            cursor.close()
+            _has_is_active_cache = result is not None
+        else:
+            # SQLite - tentar uma query simples
+            try:
+                conn.execute("SELECT is_active FROM clients LIMIT 1").fetchone()
+                _has_is_active_cache = True
+            except:
+                _has_is_active_cache = False
+    except:
+        _has_is_active_cache = False
+    
+    return _has_is_active_cache
+
+
+def get_active_clients_query() -> str:
+    """Retorna a query correta para buscar clientes ativos, dependendo se is_active existe"""
+    if has_is_active_column():
+        return "SELECT id, name FROM clients WHERE is_active = 1 OR is_active IS NULL ORDER BY name"
+    else:
+        return "SELECT id, name FROM clients ORDER BY name"
+
+
 def to_json(obj):
     return json.dumps(obj, ensure_ascii=False)
 

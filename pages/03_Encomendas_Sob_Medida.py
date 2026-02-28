@@ -1,5 +1,5 @@
 import streamlit as st
-from core.db import get_conn, now_iso, to_json, from_json, load_config, save_config, exec_query, init_db
+from core.db import get_conn, now_iso, to_json, from_json, load_config, save_config, exec_query, init_db, get_active_clients_query
 from core.models import OrderStatus
 from core.validators import validate_prices
 from core.storage import save_and_resize
@@ -35,7 +35,7 @@ for r in recentes_cadastrados:
     recentes_ids.add(r['client_id'])
 
 # Todos os clientes (apenas ativos)
-all_clients = exec_query("SELECT id, name FROM clients WHERE is_active = 1 OR is_active IS NULL ORDER BY name").fetchall()  # type: ignore
+all_clients = exec_query(get_active_clients_query()).fetchall()  # type: ignore
 
 # Montar lista com recentes no topo
 client_list = []

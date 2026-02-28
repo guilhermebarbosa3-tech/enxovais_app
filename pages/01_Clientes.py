@@ -1,5 +1,5 @@
 import streamlit as st
-from core.db import get_conn, exec_query, now_iso, init_db
+from core.db import get_conn, exec_query, now_iso, init_db, is_postgres_conn
 from core.audit import log_change
 from ui.components import section
 
@@ -8,6 +8,31 @@ init_db()
 
 st.title("👥 Clientes")
 conn = get_conn()
+
+# ============================================================================
+# VERIFICAR SE COLUNA is_active EXISTE (para compatibilidade com banco antigo)
+# ============================================================================
+def _has_is_active_column():
+    """Verifica se a coluna is_active existe na tabela clients"""
+    try:
+        if is_postgres_conn(conn):
+            result = exec_query("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'clients' AND column_name = 'is_active'
+            """).fetchone()
+            return result is not None
+        else:
+            # SQLite - tentar uma query simples
+            try:
+                exec_query("SELECT is_active FROM clients LIMIT 1").fetchone()
+                return True
+            except:
+                return False
+    except:
+        return False
+
+HAS_IS_ACTIVE = _has_is_active_column()
 
 # ============================================================================
 # FUNÇÕES AUXILIARES
@@ -25,15 +50,27 @@ def check_duplicate_name(name: str, exclude_id: int = None) -> bool:
     
     if exclude_id:
         # Excluir o próprio cliente na verificação (para edição)
-        result = exec_query(
-            "SELECT id FROM clients WHERE LOWER(name) = ? AND (is_active = 1 OR is_active IS NULL) AND id != ?",
-            (normalized, exclude_id)
-        ).fetchone()
+        if HAS_IS_ACTIVE:
+            result = exec_query(
+                "SELECT id FROM clients WHERE LOWER(name) = ? AND (is_active = 1 OR is_active IS NULL) AND id != ?",
+                (normalized, exclude_id)
+            ).fetchone()
+        else:
+            result = exec_query(
+                "SELECT id FROM clients WHERE LOWER(name) = ? AND id != ?",
+                (normalized, exclude_id)
+            ).fetchone()
     else:
-        result = exec_query(
-            "SELECT id FROM clients WHERE LOWER(name) = ? AND (is_active = 1 OR is_active IS NULL)",
-            (normalized,)
-        ).fetchone()
+        if HAS_IS_ACTIVE:
+            result = exec_query(
+                "SELECT id FROM clients WHERE LOWER(name) = ? AND (is_active = 1 OR is_active IS NULL)",
+                (normalized,)
+            ).fetchone()
+        else:
+            result = exec_query(
+                "SELECT id FROM clients WHERE LOWER(name) = ?",
+                (normalized,)
+            ).fetchone()
     
     return result is not None
 
@@ -67,11 +104,18 @@ with st.form(f"novo_cliente_{st.session_state['form_version']}"):
         elif check_duplicate_name(name):
             st.error("❌ Já existe um cliente cadastrado com esse nome.")
         else:
-            exec_query(
-                "INSERT INTO clients(name, address, cpf, phone, status, is_active) VALUES (?,?,?,?,?,1)",
-                (name.strip(), address, cpf, phone, status),
-                commit=True
-            )
+            if HAS_IS_ACTIVE:
+                exec_query(
+                    "INSERT INTO clients(name, address, cpf, phone, status, is_active) VALUES (?,?,?,?,?,1)",
+                    (name.strip(), address, cpf, phone, status),
+                    commit=True
+                )
+            else:
+                exec_query(
+                    "INSERT INTO clients(name, address, cpf, phone, status) VALUES (?,?,?,?,?)",
+                    (name.strip(), address, cpf, phone, status),
+                    commit=True
+                )
             st.success("✅ Cliente salvo com sucesso!")
             st.session_state["form_version"] += 1
             st.rerun()
@@ -104,8 +148,8 @@ section("📋 Lista de Clientes")
 query = "SELECT * FROM clients WHERE 1=1"
 params = []
 
-# Filtro de ativos/inativos
-if not show_inactive:
+# Filtro de ativos/inativos (apenas se coluna existe)
+if HAS_IS_ACTIVE and not show_inactive:
     query += " AND (is_active = 1 OR is_active IS NULL)"
 
 # Filtro de pesquisa
@@ -114,7 +158,11 @@ if search_term:
     search_like = f"%{search_term.lower()}%"
     params.extend([search_like, f"%{search_term}%"])
 
-query += " ORDER BY is_active DESC, name ASC"
+# Order by (condicional)
+if HAS_IS_ACTIVE:
+    query += " ORDER BY is_active DESC, name ASC"
+else:
+    query += " ORDER BY name ASC"
 
 rows = exec_query(query, tuple(params) if params else None).fetchall()
 
@@ -290,13 +338,18 @@ else:
                 
                 with col_confirm:
                     if st.button("✅ Sim, excluir", key=f"confirm_delete_{r['id']}", use_container_width=True, type="primary"):
-                        # Soft delete - apenas marca como inativo
-                        exec_query(
-                            "UPDATE clients SET is_active = 0 WHERE id = ?",
-                            (r['id'],),
-                            commit=True
-                        )
-                        log_change("client", r['id'], "SOFT_DELETE", "is_active", 1, 0)
+                        if HAS_IS_ACTIVE:
+                            # Soft delete - apenas marca como inativo
+                            exec_query(
+                                "UPDATE clients SET is_active = 0 WHERE id = ?",
+                                (r['id'],),
+                                commit=True
+                            )
+                            log_change("client", r['id'], "SOFT_DELETE", "is_active", 1, 0)
+                        else:
+                            # Sem coluna is_active - apenas log (não exclui de verdade para manter histórico)
+                            log_change("client", r['id'], "DELETE_ATTEMPTED", "status", r['status'], "INATIVO")
+                            st.warning("⚠️ Exclusão registrada no log (funcionalidade completa em breve).")
                         st.success("✅ Cliente excluído com sucesso! O histórico foi mantido.")
                         st.session_state["delete_client_id"] = None
                         st.rerun()

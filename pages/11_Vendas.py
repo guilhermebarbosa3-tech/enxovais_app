@@ -1,6 +1,6 @@
 import streamlit as st
 import os
-from core.db import get_conn, now_iso, from_json, to_json, exec_query, load_config, init_db
+from core.db import get_conn, now_iso, from_json, to_json, exec_query, load_config, init_db, get_active_clients_query
 from core.models import OrderStatus
 from core.audit import log_change
 
@@ -217,7 +217,7 @@ else:
     st.subheader("👤 Cliente Comprador")
     
     # Buscar todos os clientes (apenas ativos)
-    all_clients = exec_query("SELECT id, name FROM clients WHERE is_active = 1 OR is_active IS NULL ORDER BY name").fetchall()
+    all_clients = exec_query(get_active_clients_query()).fetchall()
     
     if not all_clients:
         st.error("❌ Nenhum cliente cadastrado. Cadastre um cliente primeiro em 'Clientes'.")
