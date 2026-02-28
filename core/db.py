@@ -43,9 +43,6 @@ CREATE TABLE IF NOT EXISTS clients (
   is_active INTEGER DEFAULT 1
 );
 
--- Índice para unicidade de nome (case-insensitive, trimmed) - ignorar erros se já existe
-CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_name_unique ON clients (LOWER(TRIM(name))) WHERE is_active = 1;
-
 CREATE TABLE IF NOT EXISTS product_catalog (
   id SERIAL PRIMARY KEY,
   category TEXT NOT NULL,
@@ -287,25 +284,33 @@ def init_db():
     print("🚀 INICIANDO init_db()")
     conn = get_conn()
     if is_postgres_conn(conn):
-        # PostgreSQL - executar cada statement separadamente
+        # PostgreSQL - executar cada statement com SAVEPOINT individual
         try:
             cursor = conn.cursor()
-            # Dividir o schema em statements individuais
             statements = [stmt.strip() for stmt in SCHEMA_SQL_PG.split(';') if stmt.strip()]
-            for stmt in statements:
-                if stmt:  # Ignorar statements vazios
-                    try:
-                        cursor.execute(stmt)
-                    except Exception as stmt_error:
-                        # Ignorar erros de índice já existente
-                        if "already exists" not in str(stmt_error).lower():
-                            print(f"⚠️ Aviso ao executar statement: {stmt_error}")
+            for i, stmt in enumerate(statements):
+                if not stmt:
+                    continue
+                sp = f"sp_{i}"
+                try:
+                    cursor.execute(f"SAVEPOINT {sp}")
+                    cursor.execute(stmt)
+                    cursor.execute(f"RELEASE SAVEPOINT {sp}")
+                except Exception as stmt_error:
+                    cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                    cursor.execute(f"RELEASE SAVEPOINT {sp}")
+                    err_msg = str(stmt_error).lower()
+                    if "already exists" not in err_msg:
+                        print(f"⚠️ Aviso ao executar statement PG: {stmt_error}")
             conn.commit()
             cursor.close()
             print("✅ Schema PostgreSQL criado/atualizado")
         except Exception as e:
             print(f"❌ Erro ao executar schema PostgreSQL: {e}")
-            # Fallback para SQLite se schema PostgreSQL falhar
+            try:
+                conn.rollback()
+            except Exception:
+                pass
             print("🔄 Fazendo fallback para SQLite")
             sqlite_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
             sqlite_conn.row_factory = sqlite3.Row
@@ -353,6 +358,14 @@ def _run_migrations():
                 cursor = conn.cursor()
                 cursor.execute("ALTER TABLE clients ADD COLUMN is_active INTEGER DEFAULT 1")
                 cursor.execute("UPDATE clients SET is_active = 1 WHERE is_active IS NULL")
+                # Criar índice único agora que a coluna existe
+                try:
+                    cursor.execute(
+                        "CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_name_unique "
+                        "ON clients (LOWER(TRIM(name))) WHERE is_active = 1"
+                    )
+                except Exception as idx_err:
+                    print(f"⚠️ Índice de unicidade não criado (não crítico): {idx_err}")
                 conn.commit()
                 cursor.close()
             else:
