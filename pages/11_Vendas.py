@@ -213,8 +213,8 @@ else:
     # ============================================================================
     st.subheader("👤 Cliente Comprador")
     
-    # Buscar todos os clientes
-    all_clients = exec_query("SELECT id, name FROM clients ORDER BY name").fetchall()
+    # Buscar todos os clientes (apenas ativos)
+    all_clients = exec_query("SELECT id, name FROM clients WHERE is_active = 1 OR is_active IS NULL ORDER BY name").fetchall()
     
     if not all_clients:
         st.error("❌ Nenhum cliente cadastrado. Cadastre um cliente primeiro em 'Clientes'.")

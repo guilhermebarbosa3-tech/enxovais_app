@@ -3,10 +3,13 @@ from core.db import get_conn, now_iso, to_json, from_json, load_config, save_con
 from core.models import OrderStatus
 from core.validators import validate_prices
 from core.storage import save_and_resize
+from core.audit import log_change
 from ui.components import section, photo_uploader
 
 st.session_state.setdefault("form_ver", 0)
 st.session_state.setdefault("uploader_ver", 0)
+st.session_state.setdefault("confirm_action_sob_medida", None)
+st.session_state.setdefault("pending_data_sob_medida", None)
 
 st.title("Encomendas Sob Medida — Novo Pedido")
 conn = get_conn()
@@ -28,8 +31,8 @@ for r in recentes_pedidos:
 for r in recentes_cadastrados:
     recentes_ids.add(r['client_id'])
 
-# Todos os clientes
-all_clients = exec_query("SELECT id, name FROM clients ORDER BY name").fetchall()  # type: ignore
+# Todos os clientes (apenas ativos)
+all_clients = exec_query("SELECT id, name FROM clients WHERE is_active = 1 OR is_active IS NULL ORDER BY name").fetchall()  # type: ignore
 
 # Montar lista com recentes no topo
 client_list = []
@@ -125,7 +128,7 @@ with st.form(key=form_key):
     acabamento = st.selectbox("Acabamento", acabamentos if acabamentos else ["Configure em Configurações"])
     
     obs_livre = st.text_area("Observações livres")
-    button_clicked = st.form_submit_button("Concluir Pedido")
+    button_clicked = st.form_submit_button("📤 Enviar Marta", use_container_width=True)
 
 # Upload de fotos FORA do form para atualizar preview dinamicamente
 st.subheader("📸 Fotos do Produto")
@@ -163,35 +166,74 @@ if button_clicked:
         "acabamento": acabamento
     }
     
-    # Salvar fotos se existirem (apenas URLs válidas serão persistidas)
-    photos_paths = []
-    if fotos:
-        for idx, foto in enumerate(fotos):
-            filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
-            url = save_and_resize(foto, filename_base)
-            if url:
-                photos_paths.append(url)
-            else:
-                print("[order] photo upload failed, continuing without this photo")
+    # Salvar dados pendentes para confirmação
+    st.session_state["pending_data_sob_medida"] = {
+        "client_id": client_map[client_sel],
+        "client_sel": client_sel,
+        "category": category,
+        "type_": type_,
+        "product": product,
+        "price_cost": price_cost,
+        "price_sale": price_sale,
+        "notes_struct": notes_struct,
+        "obs_livre": obs_livre,
+        "fotos": fotos
+    }
+    st.session_state["confirm_action_sob_medida"] = "enviar_marta"
+    st.rerun()
 
-    exec_query(
-        """
-        INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-        """,
-        (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso()),
-        commit=True
-    )
-    st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
-    # Incrementar versões para resetar o form e o uploader de forma limpa
-    st.session_state["form_ver"] += 1
-    st.session_state["uploader_ver"] += 1
+# ============================================================================
+# DIÁLOGO DE CONFIRMAÇÃO
+# ============================================================================
 
-    # Fazer apenas UM rerun seguro para garantir que os widgets sejam recriados limpos
-    try:
-        st.experimental_rerun()  # type: ignore[attr-defined]
-    except Exception:
-        try:
-            st.rerun()
-        except Exception:
-            pass
+if st.session_state["confirm_action_sob_medida"] and st.session_state["pending_data_sob_medida"]:
+    data = st.session_state["pending_data_sob_medida"]
+    
+    st.divider()
+    
+    with st.container(border=True):
+        st.subheader("📤 Enviar para confecção")
+        st.write("Deseja enviar esse pedido para confecção?")
+        st.info(f"**Produto:** {data['category']} › {data['type_']} › {data['product']}")
+        st.info(f"**Cliente:** {data['client_sel']}")
+        
+        # Mostrar medidas se houver
+        medidas = data['notes_struct'].get('medidas', {})
+        if medidas.get('largura') or medidas.get('altura') or medidas.get('profundidade'):
+            st.info(f"**Medidas:** {medidas.get('largura', 0)}cm x {medidas.get('altura', 0)}cm x {medidas.get('profundidade', 0)}cm")
+        
+        col_sim, col_nao = st.columns(2)
+        
+        with col_sim:
+            if st.button("✅ Sim", key="confirm_marta_sob_medida", use_container_width=True, type="primary"):
+                # Salvar fotos se existirem
+                photos_paths = []
+                if data["fotos"]:
+                    for idx, foto in enumerate(data["fotos"]):
+                        filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
+                        url = save_and_resize(foto, filename_base)
+                        if url:
+                            photos_paths.append(url)
+                
+                exec_query(
+                    """
+                    INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                    """,
+                    (data["client_id"], data["category"], data["type_"], data["product"], data["price_cost"], data["price_sale"], to_json(data["notes_struct"]), data["obs_livre"], to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso()),
+                    commit=True
+                )
+                st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
+                
+                # Limpar estados
+                st.session_state["confirm_action_sob_medida"] = None
+                st.session_state["pending_data_sob_medida"] = None
+                st.session_state["form_ver"] += 1
+                st.session_state["uploader_ver"] += 1
+                st.rerun()
+        
+        with col_nao:
+            if st.button("❌ Não", key="cancel_marta_sob_medida", use_container_width=True):
+                st.session_state["confirm_action_sob_medida"] = None
+                st.session_state["pending_data_sob_medida"] = None
+                st.rerun()

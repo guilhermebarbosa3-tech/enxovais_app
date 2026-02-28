@@ -3,10 +3,13 @@ from core.db import get_conn, now_iso, to_json, from_json, load_config, save_con
 from core.models import OrderStatus
 from core.validators import validate_prices
 from core.storage import save_and_resize
+from core.audit import log_change
 from ui.components import section, photo_uploader
 
 st.session_state.setdefault("form_ver", 0)
 st.session_state.setdefault("uploader_ver", 0)
+st.session_state.setdefault("confirm_action", None)
+st.session_state.setdefault("pending_data", None)
 
 st.title("Produtos Comuns — Novo Pedido")
 conn = get_conn()
@@ -28,8 +31,8 @@ for r in recentes_pedidos:
 for r in recentes_cadastrados:
     recentes_ids.add(r['client_id'])
 
-# Todos os clientes
-all_clients = exec_query("SELECT id, name FROM clients ORDER BY name").fetchall()  # type: ignore
+# Todos os clientes (apenas ativos)
+all_clients = exec_query("SELECT id, name FROM clients WHERE is_active = 1 OR is_active IS NULL ORDER BY name").fetchall()  # type: ignore
 
 # Montar lista com recentes no topo
 client_list = []
@@ -120,11 +123,13 @@ with st.form(key=form_key):
     quantidade_estoque = st.number_input("Quantidade (para estoque de vendas)", value=1, min_value=1, step=1, help="Se for adicionar ao estoque de vendas, informe a quantidade disponível")
     
     # Botões de ação
-    col_btn1, col_btn2 = st.columns(2)
+    col_btn1, col_btn2, col_btn3 = st.columns(3)
     with col_btn1:
-        button_pedido = st.form_submit_button("📋 Concluir Pedido", use_container_width=True)
+        button_pedido = st.form_submit_button("📤 Enviar Marta", use_container_width=True)
     with col_btn2:
         button_estoque = st.form_submit_button("🛒 Adicionar ao Estoque Vendas", use_container_width=True)
+    with col_btn3:
+        button_venda_direta = st.form_submit_button("💰 Venda Direta", use_container_width=True)
 
 # Upload de fotos FORA do form para atualizar preview dinamicamente
 st.subheader("📸 Fotos do Produto")
@@ -143,7 +148,7 @@ if fotos:
     st.write(f"✅ {len(fotos)} foto(s) carregada(s)")
 
 # Processar submissão do formulário
-if button_pedido or button_estoque:
+if button_pedido or button_estoque or button_venda_direta:
     # Validar preços
     if price_cost is None or price_sale is None:
         st.error("❌ Preço de custo e preço de venda são obrigatórios!")
@@ -152,50 +157,189 @@ if button_pedido or button_estoque:
     validate_prices(price_cost, price_sale)
     notes_struct = {"tecido":tecido, "cor":cor, "acabamento":acabamento}
     
-    # Salvar fotos se existirem (apenas URLs válidas serão persistidas)
-    photos_paths = []
-    if fotos:
-        for idx, foto in enumerate(fotos):
-            filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
-            url = save_and_resize(foto, filename_base)
-            if url:
-                photos_paths.append(url)
-            else:
-                print("[order] photo upload failed, continuing without this photo")
-
+    # Salvar dados pendentes para confirmação
+    st.session_state["pending_data"] = {
+        "client_id": client_map[client_sel],
+        "client_sel": client_sel,
+        "category": category,
+        "type_": type_,
+        "product": product,
+        "price_cost": price_cost,
+        "price_sale": price_sale,
+        "notes_struct": notes_struct,
+        "obs_livre": obs_livre,
+        "fotos": fotos,
+        "quantidade_estoque": quantidade_estoque
+    }
+    
     if button_pedido:
-        # Fluxo tradicional: criar pedido
-        exec_query(
-            """
-            INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (client_map[client_sel], category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso()),
-            commit=True
-        )
-        st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
-    
+        st.session_state["confirm_action"] = "enviar_marta"
     elif button_estoque:
-        # Novo fluxo: adicionar ao estoque de vendas
-        exec_query(
-            """
-            INSERT INTO stock_items(category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, quantity, owner_client_id, created_at, updated_at)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
-            """,
-            (category, type_, product, price_cost, price_sale, to_json(notes_struct), obs_livre, to_json(photos_paths), quantidade_estoque, client_map[client_sel], now_iso(), now_iso()),
-            commit=True
-        )
-        st.success(f"✅ Produto adicionado ao Estoque de Vendas! Quantidade: {quantidade_estoque}")
+        st.session_state["confirm_action"] = "estoque_vendas"
+    elif button_venda_direta:
+        st.session_state["confirm_action"] = "venda_direta"
     
-    # Incrementar versões para resetar o form e o uploader de forma limpa
-    st.session_state["form_ver"] += 1
-    st.session_state["uploader_ver"] += 1
+    st.rerun()
 
-    # Fazer apenas UM rerun seguro para garantir que os widgets sejam recriados limpos
-    try:
-        st.experimental_rerun()  # type: ignore[attr-defined]
-    except Exception:
-        try:
-            st.rerun()
-        except Exception:
-            pass
+# ============================================================================
+# DIÁLOGOS DE CONFIRMAÇÃO
+# ============================================================================
+
+if st.session_state["confirm_action"] and st.session_state["pending_data"]:
+    data = st.session_state["pending_data"]
+    action = st.session_state["confirm_action"]
+    
+    st.divider()
+    
+    # Box de confirmação
+    with st.container(border=True):
+        
+        if action == "enviar_marta":
+            st.subheader("📤 Enviar para confecção")
+            st.write("Deseja enviar esse pedido para confecção?")
+            st.info(f"**Produto:** {data['category']} › {data['type_']} › {data['product']}")
+            st.info(f"**Cliente:** {data['client_sel']}")
+            
+            col_sim, col_nao = st.columns(2)
+            
+            with col_sim:
+                if st.button("✅ Sim", key="confirm_marta", use_container_width=True, type="primary"):
+                    # Salvar fotos se existirem
+                    photos_paths = []
+                    if data["fotos"]:
+                        for idx, foto in enumerate(data["fotos"]):
+                            filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
+                            url = save_and_resize(foto, filename_base)
+                            if url:
+                                photos_paths.append(url)
+                    
+                    exec_query(
+                        """
+                        INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        (data["client_id"], data["category"], data["type_"], data["product"], data["price_cost"], data["price_sale"], to_json(data["notes_struct"]), data["obs_livre"], to_json(photos_paths), OrderStatus.CRIADO, now_iso(), now_iso()),
+                        commit=True
+                    )
+                    st.success("✅ Pedido criado com sucesso! Enviado para Status > Pedidos")
+                    
+                    # Limpar estados
+                    st.session_state["confirm_action"] = None
+                    st.session_state["pending_data"] = None
+                    st.session_state["form_ver"] += 1
+                    st.session_state["uploader_ver"] += 1
+                    st.rerun()
+            
+            with col_nao:
+                if st.button("❌ Não", key="cancel_marta", use_container_width=True):
+                    st.session_state["confirm_action"] = None
+                    st.session_state["pending_data"] = None
+                    st.rerun()
+        
+        elif action == "estoque_vendas":
+            st.subheader("🛒 Adicionar ao Estoque de Vendas")
+            st.write("Deseja incluir no seu estoque atual de vendas?")
+            st.info(f"**Produto:** {data['category']} › {data['type_']} › {data['product']}")
+            st.info(f"**Quantidade:** {data['quantidade_estoque']}")
+            
+            col_sim, col_nao = st.columns(2)
+            
+            with col_sim:
+                if st.button("✅ Sim", key="confirm_estoque", use_container_width=True, type="primary"):
+                    # Salvar fotos se existirem
+                    photos_paths = []
+                    if data["fotos"]:
+                        for idx, foto in enumerate(data["fotos"]):
+                            filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
+                            url = save_and_resize(foto, filename_base)
+                            if url:
+                                photos_paths.append(url)
+                    
+                    exec_query(
+                        """
+                        INSERT INTO stock_items(category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, quantity, owner_client_id, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        (data["category"], data["type_"], data["product"], data["price_cost"], data["price_sale"], to_json(data["notes_struct"]), data["obs_livre"], to_json(photos_paths), data["quantidade_estoque"], data["client_id"], now_iso(), now_iso()),
+                        commit=True
+                    )
+                    st.success(f"✅ Produto adicionado ao Estoque de Vendas! Quantidade: {data['quantidade_estoque']}")
+                    
+                    # Limpar estados
+                    st.session_state["confirm_action"] = None
+                    st.session_state["pending_data"] = None
+                    st.session_state["form_ver"] += 1
+                    st.session_state["uploader_ver"] += 1
+                    st.rerun()
+            
+            with col_nao:
+                if st.button("❌ Não", key="cancel_estoque", use_container_width=True):
+                    st.session_state["confirm_action"] = None
+                    st.session_state["pending_data"] = None
+                    st.rerun()
+        
+        elif action == "venda_direta":
+            st.subheader("💰 Venda Direta")
+            st.write("Deseja registrar esta venda diretamente?")
+            st.info("O pedido será marcado como **FATURADO** e enviado diretamente para o **Financeiro**.")
+            st.info(f"**Produto:** {data['category']} › {data['type_']} › {data['product']}")
+            st.info(f"**Cliente:** {data['client_sel']}")
+            st.info(f"**Valor de Venda:** R$ {data['price_sale']:.2f}")
+            
+            col_sim, col_nao = st.columns(2)
+            
+            with col_sim:
+                if st.button("✅ Sim, Faturar", key="confirm_venda_direta", use_container_width=True, type="primary"):
+                    # Salvar fotos se existirem
+                    photos_paths = []
+                    if data["fotos"]:
+                        for idx, foto in enumerate(data["fotos"]):
+                            filename_base = f"order_{now_iso().replace(':', '-')}_{idx}"
+                            url = save_and_resize(foto, filename_base)
+                            if url:
+                                photos_paths.append(url)
+                    
+                    # 1. Criar pedido com status VENDIDO (faturado)
+                    exec_query(
+                        """
+                        INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
+                        """,
+                        (data["client_id"], data["category"], data["type_"], data["product"], data["price_cost"], data["price_sale"], to_json(data["notes_struct"]), data["obs_livre"], to_json(photos_paths), OrderStatus.VENDIDO, now_iso(), now_iso()),
+                        commit=False
+                    )
+                    
+                    # 2. Obter o ID do pedido recém criado
+                    last_order = exec_query("SELECT id FROM orders ORDER BY id DESC LIMIT 1").fetchone()
+                    order_id = last_order['id']
+                    
+                    # 3. Criar lançamento no financeiro
+                    margem = data["price_sale"] - data["price_cost"]
+                    exec_query(
+                        """
+                        INSERT INTO finance_entries(order_id, cost, sale, margin, settled, created_at)
+                        VALUES (?,?,?,?,0,?)
+                        """,
+                        (order_id, data["price_cost"], data["price_sale"], margem, now_iso()),
+                        commit=True
+                    )
+                    
+                    # 4. Log de auditoria
+                    log_change("order", order_id, "VENDA_DIRETA", "status", None, OrderStatus.VENDIDO)
+                    
+                    st.success("✅ Venda realizada com sucesso!")
+                    st.info("📊 O lançamento foi enviado para o Financeiro.")
+                    
+                    # Limpar estados
+                    st.session_state["confirm_action"] = None
+                    st.session_state["pending_data"] = None
+                    st.session_state["form_ver"] += 1
+                    st.session_state["uploader_ver"] += 1
+                    st.rerun()
+            
+            with col_nao:
+                if st.button("❌ Cancelar", key="cancel_venda_direta", use_container_width=True):
+                    st.session_state["confirm_action"] = None
+                    st.session_state["pending_data"] = None
+                    st.rerun()
+

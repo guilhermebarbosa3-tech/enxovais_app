@@ -39,8 +39,12 @@ CREATE TABLE IF NOT EXISTS clients (
   address TEXT,
   cpf TEXT,
   phone TEXT,
-  status TEXT DEFAULT 'ADIMPLENTE'
+  status TEXT DEFAULT 'ADIMPLENTE',
+  is_active INTEGER DEFAULT 1
 );
+
+-- Índice para unicidade de nome (case-insensitive, trimmed) - ignorar erros se já existe
+CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_name_unique ON clients (LOWER(TRIM(name))) WHERE is_active = 1;
 
 CREATE TABLE IF NOT EXISTS product_catalog (
   id SERIAL PRIMARY KEY,
@@ -148,7 +152,8 @@ CREATE TABLE IF NOT EXISTS clients (
   address TEXT,
   cpf TEXT,
   phone TEXT,
-  status TEXT DEFAULT 'ADIMPLENTE'
+  status TEXT DEFAULT 'ADIMPLENTE',
+  is_active INTEGER DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS product_catalog (
@@ -289,11 +294,15 @@ def init_db():
             statements = [stmt.strip() for stmt in SCHEMA_SQL_PG.split(';') if stmt.strip()]
             for stmt in statements:
                 if stmt:  # Ignorar statements vazios
-                    cursor.execute(stmt)
+                    try:
+                        cursor.execute(stmt)
+                    except Exception as stmt_error:
+                        # Ignorar erros de índice já existente
+                        if "already exists" not in str(stmt_error).lower():
+                            print(f"⚠️ Aviso ao executar statement: {stmt_error}")
             conn.commit()
             cursor.close()
             print("✅ Schema PostgreSQL criado/atualizado")
-            print("✅ FINALIZADO init_db()")
         except Exception as e:
             print(f"❌ Erro ao executar schema PostgreSQL: {e}")
             # Fallback para SQLite se schema PostgreSQL falhar
@@ -309,7 +318,52 @@ def init_db():
         conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
         conn.commit()
         print("✅ Schema SQLite criado/atualizado")
+    
+    # Executar migrações automáticas
+    _run_migrations()
+    
     print("✅ FINALIZADO init_db()")
+
+
+def _run_migrations():
+    """Executa migrações pendentes automaticamente (usa SQL direto, sem exec_query)"""
+    print("📦 Verificando migrações...")
+    conn = get_conn()
+    is_pg = is_postgres_conn(conn)
+    
+    try:
+        # Migração 001: Adicionar is_active aos clientes
+        if is_pg:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT column_name 
+                FROM information_schema.columns 
+                WHERE table_name = 'clients' AND column_name = 'is_active'
+            """)
+            result = cursor.fetchone()
+            has_is_active = result is not None
+            cursor.close()
+        else:
+            cols = conn.execute("PRAGMA table_info(clients)").fetchall()
+            has_is_active = any(col['name'] == 'is_active' for col in cols)
+        
+        if not has_is_active:
+            print("📝 Migração 001: Adicionando coluna is_active...")
+            if is_pg:
+                cursor = conn.cursor()
+                cursor.execute("ALTER TABLE clients ADD COLUMN is_active INTEGER DEFAULT 1")
+                cursor.execute("UPDATE clients SET is_active = 1 WHERE is_active IS NULL")
+                conn.commit()
+                cursor.close()
+            else:
+                conn.execute("ALTER TABLE clients ADD COLUMN is_active INTEGER DEFAULT 1")
+                conn.execute("UPDATE clients SET is_active = 1 WHERE is_active IS NULL")
+                conn.commit()
+            print("✅ Migração 001 concluída!")
+        
+        print("✅ Todas as migrações verificadas")
+    except Exception as e:
+        print(f"⚠️ Erro ao verificar migrações: {e}")
 
 
 def now_iso() -> str:
