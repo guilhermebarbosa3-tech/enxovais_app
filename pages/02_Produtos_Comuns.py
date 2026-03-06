@@ -120,10 +120,10 @@ with st.form(key=form_key):
     
     obs_livre = st.text_area("Observações livres")
     
-    # Quantidade para estoque de vendas
+    # Quantidade (para estoque de vendas ou venda direta)
     st.divider()
     st.write("**📦 Opções de destino:**")
-    quantidade_estoque = st.number_input("Quantidade (para estoque de vendas)", value=1, min_value=1, step=1, help="Se for adicionar ao estoque de vendas, informe a quantidade disponível")
+    quantidade_estoque = st.number_input("Quantidade", value=1, min_value=1, step=1, help="Quantidade de itens (vale para estoque de vendas e venda direta)")
     
     # Botões de ação
     col_btn1, col_btn2, col_btn3 = st.columns(3)
@@ -282,12 +282,17 @@ if st.session_state["confirm_action"] and st.session_state["pending_data"]:
                     st.rerun()
         
         elif action == "venda_direta":
+            qtd = data.get('quantidade_estoque', 1)
+            total_venda = data['price_sale'] * qtd
+            total_custo = data['price_cost'] * qtd
+            
             st.subheader("💰 Venda Direta")
             st.write("Deseja registrar esta venda diretamente?")
             st.info("O pedido será marcado como **FATURADO** e enviado diretamente para o **Financeiro**.")
             st.info(f"**Produto:** {data['category']} › {data['type_']} › {data['product']}")
             st.info(f"**Cliente:** {data['client_sel']}")
-            st.info(f"**Valor de Venda:** R$ {data['price_sale']:.2f}")
+            st.info(f"**Quantidade:** {qtd}")
+            st.info(f"**Valor Unitário:** R$ {data['price_sale']:.2f}  |  **Total:** R$ {total_venda:.2f}")
             
             col_sim, col_nao = st.columns(2)
             
@@ -302,13 +307,13 @@ if st.session_state["confirm_action"] and st.session_state["pending_data"]:
                             if url:
                                 photos_paths.append(url)
                     
-                    # 1. Criar pedido com status VENDIDO (faturado)
+                    # 1. Criar pedido com status VENDIDO (faturado) — valores totais
                     exec_query(
                         """
                         INSERT INTO orders(client_id, category, type, product, price_cost, price_sale, notes_struct, notes_free, photos, status, created_at, updated_at)
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
                         """,
-                        (data["client_id"], data["category"], data["type_"], data["product"], data["price_cost"], data["price_sale"], to_json(data["notes_struct"]), data["obs_livre"], to_json(photos_paths), OrderStatus.VENDIDO, now_iso(), now_iso()),
+                        (data["client_id"], data["category"], data["type_"], data["product"], total_custo, total_venda, to_json(data["notes_struct"]), data["obs_livre"], to_json(photos_paths), OrderStatus.VENDIDO, now_iso(), now_iso()),
                         commit=False
                     )
                     
@@ -316,14 +321,14 @@ if st.session_state["confirm_action"] and st.session_state["pending_data"]:
                     last_order = exec_query("SELECT id FROM orders ORDER BY id DESC LIMIT 1").fetchone()
                     order_id = last_order['id']
                     
-                    # 3. Criar lançamento no financeiro
-                    margem = data["price_sale"] - data["price_cost"]
+                    # 3. Criar lançamento no financeiro com valores totais
+                    margem = total_venda - total_custo
                     exec_query(
                         """
                         INSERT INTO finance_entries(order_id, cost, sale, margin, settled, created_at)
                         VALUES (?,?,?,?,0,?)
                         """,
-                        (order_id, data["price_cost"], data["price_sale"], margem, now_iso()),
+                        (order_id, total_custo, total_venda, margem, now_iso()),
                         commit=True
                     )
                     
