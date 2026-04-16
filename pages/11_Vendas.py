@@ -14,6 +14,10 @@ conn = get_conn()
 # Inicializar carrinho na sessão
 if "carrinho" not in st.session_state:
     st.session_state["carrinho"] = []
+if "confirm_delete_id" not in st.session_state:
+    st.session_state["confirm_delete_id"] = None
+if "edit_item_id" not in st.session_state:
+    st.session_state["edit_item_id"] = None
 
 # Carregar configurações de hierarquia para filtro
 hierarchy = load_config("product_hierarchy", {})
@@ -155,6 +159,71 @@ else:
                                         "photos": r["photos"]
                                     })
                                     st.success(f"✅ Adicionado ao carrinho!")
+                                st.rerun()
+                        
+                        # ── Gerenciamento inline ─────────────────────────────
+                        mgmt_col1, mgmt_col2 = st.columns([1, 1])
+                        
+                        with mgmt_col1:
+                            lbl_edit = "✏️ Editando..." if st.session_state.get("edit_item_id") == r['id'] else "✏️ Editar"
+                            if st.button(lbl_edit, key=f"edit_btn_{r['id']}", use_container_width=True):
+                                if st.session_state.get("edit_item_id") == r['id']:
+                                    st.session_state["edit_item_id"] = None
+                                else:
+                                    st.session_state["edit_item_id"] = r['id']
+                                    st.session_state["confirm_delete_id"] = None
+                                st.rerun()
+                        
+                        with mgmt_col2:
+                            lbl_del = "⚠️ Confirmar?" if st.session_state.get("confirm_delete_id") == r['id'] else "🗑️ Excluir"
+                            if st.button(lbl_del, key=f"del_btn_{r['id']}", use_container_width=True):
+                                if st.session_state.get("confirm_delete_id") == r['id']:
+                                    st.session_state["confirm_delete_id"] = None
+                                else:
+                                    st.session_state["confirm_delete_id"] = r['id']
+                                    st.session_state["edit_item_id"] = None
+                                st.rerun()
+                        
+                        # Painel de confirmação de exclusão
+                        if st.session_state.get("confirm_delete_id") == r['id']:
+                            st.warning("⚠️ Confirmar exclusão deste item do estoque?")
+                            cd1, cd2 = st.columns(2)
+                            with cd1:
+                                if st.button("✅ Excluir agora", key=f"confirm_del_{r['id']}", use_container_width=True, type="primary"):
+                                    exec_query("DELETE FROM stock_items WHERE id=?", (r['id'],), commit=True)
+                                    log_change("stock_item", r['id'], "DELETE", "all", str(dict(r)), None)
+                                    st.session_state["confirm_delete_id"] = None
+                                    st.rerun()
+                            with cd2:
+                                if st.button("❌ Cancelar", key=f"cancel_del_{r['id']}", use_container_width=True):
+                                    st.session_state["confirm_delete_id"] = None
+                                    st.rerun()
+                        
+                        # Painel de edição inline
+                        if st.session_state.get("edit_item_id") == r['id']:
+                            st.caption("✏️ Editar item do estoque")
+                            with st.form(key=f"edit_form_{r['id']}"):
+                                edit_price = st.number_input("Preço de venda (R$)", value=float(r['price_sale']), min_value=0.0, step=1.0)
+                                edit_qty = st.number_input("Quantidade", value=int(r['quantity']), min_value=1, step=1)
+                                edit_notes = st.text_input("Observações", value=r['notes_free'] or "")
+                                fc1, fc2 = st.columns(2)
+                                with fc1:
+                                    btn_save = st.form_submit_button("💾 Salvar", use_container_width=True, type="primary")
+                                with fc2:
+                                    btn_cancel = st.form_submit_button("❌ Cancelar", use_container_width=True)
+                            
+                            if btn_save:
+                                exec_query(
+                                    "UPDATE stock_items SET price_sale=?, quantity=?, notes_free=?, updated_at=? WHERE id=?",
+                                    (edit_price, edit_qty, edit_notes, now_iso(), r['id']),
+                                    commit=True
+                                )
+                                log_change("stock_item", r['id'], "EDIT", "price_sale/quantity",
+                                           f"{r['price_sale']}/{r['quantity']}", f"{edit_price}/{edit_qty}")
+                                st.session_state["edit_item_id"] = None
+                                st.rerun()
+                            if btn_cancel:
+                                st.session_state["edit_item_id"] = None
                                 st.rerun()
 
 st.divider()
@@ -323,39 +392,4 @@ else:
             st.session_state["carrinho"] = []
             st.rerun()
 
-# ============================================================================
-# GERENCIAR ESTOQUE (Expandível)
-# ============================================================================
-with st.expander("⚙️ Gerenciar Estoque de Vendas"):
-    st.subheader("📋 Todos os Itens do Estoque")
-    
-    all_stock = exec_query("""
-        SELECT s.*, c.name AS owner_name 
-        FROM stock_items s 
-        LEFT JOIN clients c ON c.id = s.owner_client_id
-        ORDER BY s.created_at DESC
-    """).fetchall()
-    
-    if all_stock:
-        for r in all_stock:
-            with st.container(border=True):
-                col1, col2, col3, col4 = st.columns([3, 1, 1, 1])
-                
-                with col1:
-                    st.write(f"**#{r['id']}** - {r['category']} › {r['type']} › {r['product']}")
-                    st.caption(f"Cadastrado por: {r['owner_name'] or 'N/A'}")
-                
-                with col2:
-                    st.write(f"Qtd: **{r['quantity']}**")
-                
-                with col3:
-                    st.write(f"R$ {r['price_sale']:.2f}")
-                
-                with col4:
-                    if st.button("🗑️ Excluir", key=f"del_stock_{r['id']}"):
-                        exec_query("DELETE FROM stock_items WHERE id=?", (r['id'],), commit=True)
-                        log_change("stock_item", r['id'], "DELETE", "all", str(dict(r)), None)
-                        st.success("Item removido do estoque!")
-                        st.rerun()
-    else:
-        st.info("Nenhum item no estoque.")
+
