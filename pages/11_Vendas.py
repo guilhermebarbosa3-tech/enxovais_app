@@ -117,10 +117,10 @@ else:
                             st.write(f"💰 **R$ {r['price_sale']:.2f}**")
                             st.caption(f"Estoque: {r['quantity']} un.")
                         
-                        # Seletor de quantidade e botão adicionar
-                        add_col1, add_col2 = st.columns([1, 1])
+                        # Uma linha: quantidade | 🛒 | ✏️ | 🗑️
+                        ac1, ac2, ac3, ac4 = st.columns([2, 1, 1, 1])
                         
-                        with add_col1:
+                        with ac1:
                             qtd_add = st.number_input(
                                 "Qtd",
                                 min_value=1,
@@ -130,21 +130,17 @@ else:
                                 label_visibility="collapsed"
                             )
                         
-                        with add_col2:
-                            if st.button("🛒 Adicionar", key=f"add_{r['id']}", use_container_width=True):
-                                # Verificar se já está no carrinho
+                        with ac2:
+                            if st.button("🛒", key=f"add_{r['id']}", use_container_width=True, help="Adicionar ao carrinho"):
                                 item_existente = next((item for item in st.session_state["carrinho"] if item["id"] == r["id"]), None)
-                                
                                 if item_existente:
-                                    # Atualizar quantidade
                                     nova_qtd = item_existente["qtd_selecionada"] + qtd_add
                                     if nova_qtd <= r['quantity']:
                                         item_existente["qtd_selecionada"] = nova_qtd
-                                        st.success(f"✅ Quantidade atualizada!")
+                                        st.success("✅ Quantidade atualizada!")
                                     else:
-                                        st.error(f"❌ Estoque insuficiente!")
+                                        st.error("❌ Estoque insuficiente!")
                                 else:
-                                    # Adicionar novo item ao carrinho
                                     st.session_state["carrinho"].append({
                                         "id": r["id"],
                                         "category": r["category"],
@@ -158,15 +154,12 @@ else:
                                         "notes_free": r["notes_free"],
                                         "photos": r["photos"]
                                     })
-                                    st.success(f"✅ Adicionado ao carrinho!")
+                                    st.success("✅ Adicionado!")
                                 st.rerun()
                         
-                        # ── Gerenciamento inline ─────────────────────────────
-                        mgmt_col1, mgmt_col2 = st.columns([1, 1])
-                        
-                        with mgmt_col1:
-                            lbl_edit = "✏️ Editando..." if st.session_state.get("edit_item_id") == r['id'] else "✏️ Editar"
-                            if st.button(lbl_edit, key=f"edit_btn_{r['id']}", use_container_width=True):
+                        with ac3:
+                            lbl_edit = "🔄" if st.session_state.get("edit_item_id") == r['id'] else "✏️"
+                            if st.button(lbl_edit, key=f"edit_btn_{r['id']}", use_container_width=True, help="Editar item"):
                                 if st.session_state.get("edit_item_id") == r['id']:
                                     st.session_state["edit_item_id"] = None
                                 else:
@@ -174,9 +167,9 @@ else:
                                     st.session_state["confirm_delete_id"] = None
                                 st.rerun()
                         
-                        with mgmt_col2:
-                            lbl_del = "⚠️ Confirmar?" if st.session_state.get("confirm_delete_id") == r['id'] else "🗑️ Excluir"
-                            if st.button(lbl_del, key=f"del_btn_{r['id']}", use_container_width=True):
+                        with ac4:
+                            lbl_del = "⚠️" if st.session_state.get("confirm_delete_id") == r['id'] else "🗑️"
+                            if st.button(lbl_del, key=f"del_btn_{r['id']}", use_container_width=True, help="Excluir item"):
                                 if st.session_state.get("confirm_delete_id") == r['id']:
                                     st.session_state["confirm_delete_id"] = None
                                 else:
