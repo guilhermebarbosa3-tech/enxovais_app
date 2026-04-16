@@ -102,6 +102,10 @@ for r in rows:
             with col_confirm:
                 if st.button("✅ Sim, excluir", key=f"confirm_del_{r['id']}", use_container_width=True):
                     log_change("order", r['id'], "DELETE", "all", str(r), None)
+                    # Excluir registros dependentes antes (evita ForeignKeyViolation no PostgreSQL)
+                    exec_query("DELETE FROM finance_entries WHERE order_id=?", (r['id'],), commit=False)
+                    exec_query("DELETE FROM shipments WHERE order_id=?", (r['id'],), commit=False)
+                    exec_query("DELETE FROM nonconformities WHERE order_id=?", (r['id'],), commit=False)
                     exec_query("DELETE FROM orders WHERE id=?", (r['id'],), commit=True)
                     st.success("✅ Pedido deletado com sucesso")
                     st.rerun()
