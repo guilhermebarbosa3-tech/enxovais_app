@@ -27,14 +27,42 @@ hierarchy = load_config("product_hierarchy", {})
 # ============================================================================
 st.subheader("🔍 Pesquisar Produtos")
 
-col_search, col_cat = st.columns([2, 1])
+col_search, col_cat, col_tipo, col_prod = st.columns([3, 1, 1, 1])
 
 with col_search:
     termo_pesquisa = st.text_input("Buscar por nome/descrição", placeholder="Digite para pesquisar...")
 
+# Buscar valores distintos do estoque para popular os filtros
+_all_stock_meta = exec_query(
+    "SELECT DISTINCT category, type, product FROM stock_items WHERE quantity > 0 ORDER BY category, type, product"
+).fetchall()
+
+_cats   = sorted(set(r['category'] for r in _all_stock_meta))
+_tipos  = sorted(set(r['type']     for r in _all_stock_meta))
+_prods  = sorted(set(r['product']  for r in _all_stock_meta))
+
 with col_cat:
-    categorias_disponiveis = ["Todos"] + list(hierarchy.keys()) if hierarchy else ["Todos"]
-    categoria_filtro = st.selectbox("Filtrar por Categoria", categorias_disponiveis)
+    categoria_filtro = st.selectbox("Categoria", ["Todos"] + _cats)
+
+with col_tipo:
+    # Filtrar tipos pela categoria selecionada
+    if categoria_filtro != "Todos":
+        _tipos_filtrados = sorted(set(r['type'] for r in _all_stock_meta if r['category'] == categoria_filtro))
+    else:
+        _tipos_filtrados = _tipos
+    tipo_filtro = st.selectbox("Tipo", ["Todos"] + _tipos_filtrados)
+
+with col_prod:
+    # Filtrar produtos pela categoria E tipo selecionados
+    if categoria_filtro != "Todos" and tipo_filtro != "Todos":
+        _prods_filtrados = sorted(set(r['product'] for r in _all_stock_meta if r['category'] == categoria_filtro and r['type'] == tipo_filtro))
+    elif categoria_filtro != "Todos":
+        _prods_filtrados = sorted(set(r['product'] for r in _all_stock_meta if r['category'] == categoria_filtro))
+    elif tipo_filtro != "Todos":
+        _prods_filtrados = sorted(set(r['product'] for r in _all_stock_meta if r['type'] == tipo_filtro))
+    else:
+        _prods_filtrados = _prods
+    produto_filtro = st.selectbox("Produto", ["Todos"] + _prods_filtrados)
 
 st.divider()
 
@@ -49,16 +77,22 @@ query = """
 """
 params = []
 
-# Aplicar filtro de categoria
 if categoria_filtro != "Todos":
     query += " AND s.category = ?"
     params.append(categoria_filtro)
 
-# Aplicar filtro de pesquisa
+if tipo_filtro != "Todos":
+    query += " AND s.type = ?"
+    params.append(tipo_filtro)
+
+if produto_filtro != "Todos":
+    query += " AND s.product = ?"
+    params.append(produto_filtro)
+
 if termo_pesquisa:
-    query += " AND (s.product LIKE ? OR s.type LIKE ? OR s.notes_free LIKE ?)"
+    query += " AND (s.product LIKE ? OR s.type LIKE ? OR s.category LIKE ? OR s.notes_free LIKE ?)"
     termo = f"%{termo_pesquisa}%"
-    params.extend([termo, termo, termo])
+    params.extend([termo, termo, termo, termo])
 
 query += " ORDER BY s.created_at DESC"
 
