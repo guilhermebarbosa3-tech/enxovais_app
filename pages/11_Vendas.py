@@ -230,9 +230,9 @@ else:
                         if st.session_state.get("edit_item_id") == r['id']:
                             st.caption("✏️ Editar item do estoque")
                             with st.form(key=f"edit_form_{r['id']}"):
+                                edit_cost = st.number_input("Preço de custo (R$)", value=float(r['price_cost']), min_value=0.0, step=1.0)
                                 edit_price = st.number_input("Preço de venda (R$)", value=float(r['price_sale']), min_value=0.0, step=1.0)
                                 edit_qty = st.number_input("Quantidade", value=int(r['quantity']), min_value=1, step=1)
-                                edit_notes = st.text_input("Observações", value=r['notes_free'] or "")
                                 fc1, fc2 = st.columns(2)
                                 with fc1:
                                     btn_save = st.form_submit_button("💾 Salvar", use_container_width=True, type="primary")
@@ -241,12 +241,13 @@ else:
                             
                             if btn_save:
                                 exec_query(
-                                    "UPDATE stock_items SET price_sale=?, quantity=?, notes_free=?, updated_at=? WHERE id=?",
-                                    (edit_price, edit_qty, edit_notes, now_iso(), r['id']),
+                                    "UPDATE stock_items SET price_cost=?, price_sale=?, quantity=?, updated_at=? WHERE id=?",
+                                    (edit_cost, edit_price, edit_qty, now_iso(), r['id']),
                                     commit=True
                                 )
-                                log_change("stock_item", r['id'], "EDIT", "price_sale/quantity",
-                                           f"{r['price_sale']}/{r['quantity']}", f"{edit_price}/{edit_qty}")
+                                log_change("stock_item", r['id'], "EDIT", "price_cost/price_sale/quantity",
+                                           f"{r['price_cost']}/{r['price_sale']}/{r['quantity']}",
+                                           f"{edit_cost}/{edit_price}/{edit_qty}")
                                 st.session_state["edit_item_id"] = None
                                 st.rerun()
                             if btn_cancel:
