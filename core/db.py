@@ -393,6 +393,41 @@ def _run_migrations():
                 conn.commit()
             print("✅ Migração 001 concluída!")
         
+        # Migração 002: Adicionar is_cancelled e cancelled_at a finance_entries
+        if is_pg:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT column_name FROM information_schema.columns
+                WHERE table_name = 'finance_entries' AND column_name = 'is_cancelled'
+            """)
+            has_col = cursor.fetchone() is not None
+            cursor.close()
+        else:
+            cols_fe = conn.execute("PRAGMA table_info(finance_entries)").fetchall()
+            fe_names = [c[1] for c in cols_fe]
+            has_col = 'is_cancelled' in fe_names
+
+        if not has_col:
+            print("📝 Migração 002: Adicionando is_cancelled / cancelled_at a finance_entries...")
+            if is_pg:
+                cursor = conn.cursor()
+                try:
+                    cursor.execute("SAVEPOINT mig002")
+                    cursor.execute("ALTER TABLE finance_entries ADD COLUMN is_cancelled INTEGER DEFAULT 0")
+                    cursor.execute("ALTER TABLE finance_entries ADD COLUMN cancelled_at TEXT")
+                    cursor.execute("RELEASE SAVEPOINT mig002")
+                except Exception as e2:
+                    cursor.execute("ROLLBACK TO SAVEPOINT mig002")
+                    cursor.execute("RELEASE SAVEPOINT mig002")
+                    print(f"⚠️ Migração 002 PG: {e2}")
+                conn.commit()
+                cursor.close()
+            else:
+                conn.execute("ALTER TABLE finance_entries ADD COLUMN is_cancelled INTEGER DEFAULT 0")
+                conn.execute("ALTER TABLE finance_entries ADD COLUMN cancelled_at TEXT")
+                conn.commit()
+            print("✅ Migração 002 concluída!")
+
         print("✅ Todas as migrações verificadas")
     except Exception as e:
         print(f"⚠️ Erro ao verificar migrações: {e}")

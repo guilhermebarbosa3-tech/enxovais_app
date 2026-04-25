@@ -13,6 +13,7 @@ class OrderStatus:
     # Novos status para módulo de vendas
     DISPONIVEL_VENDA = "DISPONIVEL_VENDA"  # Produto no estoque para venda direta
     VENDIDO = "VENDIDO"                     # Produto vendido no caixa
+    CANCELADO = "CANCELADO"                 # Venda/pedido cancelado
 
 @dataclass
 class Client:
