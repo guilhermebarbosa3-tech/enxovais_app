@@ -344,40 +344,34 @@ def _run_migrations():
     print("📦 Verificando migrações...")
     conn = get_conn()
     is_pg = is_postgres_conn(conn)
-    
+
+    # ── Migração 001: is_active em clients ─────────────────────────────────
     try:
-        # Migração 001: Adicionar is_active aos clientes
         if is_pg:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT column_name 
-                FROM information_schema.columns 
+                SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'clients' AND column_name = 'is_active'
             """)
-            result = cursor.fetchone()
-            has_is_active = result is not None
+            has_is_active = cursor.fetchone() is not None
             cursor.close()
         else:
             cols = conn.execute("PRAGMA table_info(clients)").fetchall()
-            # PRAGMA retorna: cid, name, type, notnull, dflt_value, pk
-            # Usar índice numérico [1] para o nome da coluna (mais robusto)
             column_names = []
             for col in cols:
                 try:
-                    # Tentar acesso por chave primeiro, depois por índice
                     col_name = col['name'] if hasattr(col, 'keys') else col[1]
                     column_names.append(col_name)
                 except (KeyError, IndexError, TypeError):
                     continue
             has_is_active = 'is_active' in column_names
-        
+
         if not has_is_active:
             print("📝 Migração 001: Adicionando coluna is_active...")
             if is_pg:
                 cursor = conn.cursor()
                 cursor.execute("ALTER TABLE clients ADD COLUMN is_active INTEGER DEFAULT 1")
                 cursor.execute("UPDATE clients SET is_active = 1 WHERE is_active IS NULL")
-                # Criar índice único agora que a coluna existe
                 try:
                     cursor.execute(
                         "CREATE UNIQUE INDEX IF NOT EXISTS idx_clients_name_unique "
@@ -392,34 +386,35 @@ def _run_migrations():
                 conn.execute("UPDATE clients SET is_active = 1 WHERE is_active IS NULL")
                 conn.commit()
             print("✅ Migração 001 concluída!")
-        
-        # Migração 002: Adicionar is_cancelled e cancelled_at a finance_entries
+    except Exception as e001:
+        print(f"⚠️ Migração 001 falhou: {e001}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
+
+    # ── Migração 002: is_cancelled / cancelled_at em finance_entries ────────
+    try:
         if is_pg:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT column_name FROM information_schema.columns
                 WHERE table_name = 'finance_entries' AND column_name = 'is_cancelled'
             """)
-            has_col = cursor.fetchone() is not None
+            has_cancelled = cursor.fetchone() is not None
             cursor.close()
         else:
             cols_fe = conn.execute("PRAGMA table_info(finance_entries)").fetchall()
             fe_names = [c[1] for c in cols_fe]
-            has_col = 'is_cancelled' in fe_names
+            has_cancelled = 'is_cancelled' in fe_names
 
-        if not has_col:
+        if not has_cancelled:
             print("📝 Migração 002: Adicionando is_cancelled / cancelled_at a finance_entries...")
             if is_pg:
                 cursor = conn.cursor()
-                try:
-                    cursor.execute("SAVEPOINT mig002")
-                    cursor.execute("ALTER TABLE finance_entries ADD COLUMN is_cancelled INTEGER DEFAULT 0")
-                    cursor.execute("ALTER TABLE finance_entries ADD COLUMN cancelled_at TEXT")
-                    cursor.execute("RELEASE SAVEPOINT mig002")
-                except Exception as e2:
-                    cursor.execute("ROLLBACK TO SAVEPOINT mig002")
-                    cursor.execute("RELEASE SAVEPOINT mig002")
-                    print(f"⚠️ Migração 002 PG: {e2}")
+                # IF NOT EXISTS disponível no PG 9.6+ — evita erro se coluna já existir
+                cursor.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS is_cancelled INTEGER DEFAULT 0")
+                cursor.execute("ALTER TABLE finance_entries ADD COLUMN IF NOT EXISTS cancelled_at TEXT")
                 conn.commit()
                 cursor.close()
             else:
@@ -427,10 +422,14 @@ def _run_migrations():
                 conn.execute("ALTER TABLE finance_entries ADD COLUMN cancelled_at TEXT")
                 conn.commit()
             print("✅ Migração 002 concluída!")
+    except Exception as e002:
+        print(f"⚠️ Migração 002 falhou: {e002}")
+        try:
+            conn.rollback()
+        except Exception:
+            pass
 
-        print("✅ Todas as migrações verificadas")
-    except Exception as e:
-        print(f"⚠️ Erro ao verificar migrações: {e}")
+    print("✅ Todas as migrações verificadas")
 
 
 def now_iso() -> str:

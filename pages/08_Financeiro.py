@@ -51,7 +51,7 @@ rows = exec_query("""
     JOIN orders o ON o.id=f.order_id
     JOIN clients c ON c.id=o.client_id
     WHERE date(f.created_at) BETWEEN ? AND ?
-    ORDER BY f.is_cancelled ASC, f.settled ASC, f.created_at DESC
+    ORDER BY f.settled ASC, f.created_at DESC
 """, (start_iso, end_iso)).fetchall()
 
 st.divider()
