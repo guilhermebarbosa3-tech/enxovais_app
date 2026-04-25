@@ -153,7 +153,27 @@ else:
 
     st.divider()
 
-    df = pd.DataFrame(data_filtrado)
+    # Filtro de status duplicado — próximo da tabela para acesso rápido
+    col_filt1, col_filt2 = st.columns([2, 1])
+    with col_filt1:
+        status_filter_tabela = st.radio(
+            "🔎 Filtrar tabela",
+            options=["📋 Todos", "⏳ Pendentes", "✅ Pagos"],
+            horizontal=True,
+            index=["📋 Todos", "⏳ Pendentes", "✅ Pagos"].index(status_filter),
+            key="status_filter_tabela"
+        )
+    with col_filt2:
+        show_cancelled_tabela = st.checkbox("Exibir cancelados", value=show_cancelled, key="show_cancelled_tabela")
+
+    # Reaplicar filtro local (pode diferir do filtro do topo)
+    data_tabela = data if show_cancelled_tabela else [r for r in data if not r['_is_cancelled']]
+    if status_filter_tabela == "⏳ Pendentes":
+        data_tabela = [r for r in data_tabela if r['_settled'] == 0 and not r['_is_cancelled']]
+    elif status_filter_tabela == "✅ Pagos":
+        data_tabela = [r for r in data_tabela if r['_settled'] == 1 and not r['_is_cancelled']]
+
+    df = pd.DataFrame(data_tabela)
 
     if 'table_state' not in st.session_state:
         st.session_state['table_state'] = df.copy()
@@ -224,7 +244,7 @@ else:
 
             opcoes_cancelar = [
                 f"#{r['_order_id']} — {r['Cliente']} — {r['Produto']} ({r['Status']})"
-                for r in data_filtrado
+                for r in data
                 if not r['_is_cancelled']
             ]
 
@@ -243,7 +263,7 @@ else:
                     # Extrair order_id da opção selecionada
                     order_id_str = cancel_choice.split("—")[0].strip().lstrip("#")
                     order_id_cancel = int(order_id_str)
-                    row_cancel = next((r for r in data_filtrado if r['_order_id'] == order_id_cancel), None)
+                    row_cancel = next((r for r in data if r['_order_id'] == order_id_cancel), None)
 
                     if row_cancel:
                         st.write(f"**Pedido:** {row_cancel['Produto']}")
