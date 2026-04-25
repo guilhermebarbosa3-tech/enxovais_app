@@ -286,57 +286,57 @@ def is_postgres_conn(conn) -> bool:
 
 def init_db():
     global _db_initialized
-    if _db_initialized:
-        return  # Já inicializado, evita rodar múltiplas vezes
     
-    print("🚀 INICIANDO init_db()")
-    conn = get_conn()
-    if is_postgres_conn(conn):
-        # PostgreSQL - executar cada statement com SAVEPOINT individual
-        try:
-            cursor = conn.cursor()
-            statements = [stmt.strip() for stmt in SCHEMA_SQL_PG.split(';') if stmt.strip()]
-            for i, stmt in enumerate(statements):
-                if not stmt:
-                    continue
-                sp = f"sp_{i}"
-                try:
-                    cursor.execute(f"SAVEPOINT {sp}")
-                    cursor.execute(stmt)
-                    cursor.execute(f"RELEASE SAVEPOINT {sp}")
-                except Exception as stmt_error:
-                    cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
-                    cursor.execute(f"RELEASE SAVEPOINT {sp}")
-                    err_msg = str(stmt_error).lower()
-                    if "already exists" not in err_msg:
-                        print(f"⚠️ Aviso ao executar statement PG: {stmt_error}")
-            conn.commit()
-            cursor.close()
-            print("✅ Schema PostgreSQL criado/atualizado")
-        except Exception as e:
-            print(f"❌ Erro ao executar schema PostgreSQL: {e}")
+    # Criação de tabelas: roda apenas uma vez por processo
+    if not _db_initialized:
+        print("🚀 INICIANDO init_db()")
+        conn = get_conn()
+        if is_postgres_conn(conn):
+            # PostgreSQL - executar cada statement com SAVEPOINT individual
             try:
-                conn.rollback()
-            except Exception:
-                pass
-            print("🔄 Fazendo fallback para SQLite")
-            sqlite_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-            sqlite_conn.row_factory = sqlite3.Row
-            sqlite_conn.executescript(SCHEMA_SQL_SQLITE)
-            sqlite_conn.commit()
-            global _conn
-            _conn = sqlite_conn
-    else:
-        # SQLite
-        conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
-        conn.commit()
-        print("✅ Schema SQLite criado/atualizado")
+                cursor = conn.cursor()
+                statements = [stmt.strip() for stmt in SCHEMA_SQL_PG.split(';') if stmt.strip()]
+                for i, stmt in enumerate(statements):
+                    if not stmt:
+                        continue
+                    sp = f"sp_{i}"
+                    try:
+                        cursor.execute(f"SAVEPOINT {sp}")
+                        cursor.execute(stmt)
+                        cursor.execute(f"RELEASE SAVEPOINT {sp}")
+                    except Exception as stmt_error:
+                        cursor.execute(f"ROLLBACK TO SAVEPOINT {sp}")
+                        cursor.execute(f"RELEASE SAVEPOINT {sp}")
+                        err_msg = str(stmt_error).lower()
+                        if "already exists" not in err_msg:
+                            print(f"⚠️ Aviso ao executar statement PG: {stmt_error}")
+                conn.commit()
+                cursor.close()
+                print("✅ Schema PostgreSQL criado/atualizado")
+            except Exception as e:
+                print(f"❌ Erro ao executar schema PostgreSQL: {e}")
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                print("🔄 Fazendo fallback para SQLite")
+                sqlite_conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+                sqlite_conn.row_factory = sqlite3.Row
+                sqlite_conn.executescript(SCHEMA_SQL_SQLITE)
+                sqlite_conn.commit()
+                global _conn
+                _conn = sqlite_conn
+        else:
+            # SQLite
+            conn.executescript(SCHEMA_SQL_SQLITE)  # type: ignore
+            conn.commit()
+            print("✅ Schema SQLite criado/atualizado")
+        
+        _db_initialized = True
+        print("✅ FINALIZADO init_db()")
     
-    # Executar migrações automáticas
+    # Migrações: sempre verificadas (são idempotentes — só alteram se necessário)
     _run_migrations()
-    
-    _db_initialized = True
-    print("✅ FINALIZADO init_db()")
 
 
 def _run_migrations():
